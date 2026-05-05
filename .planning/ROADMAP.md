@@ -48,7 +48,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Treemap 模块脚手架与数据结构定义
 - [x] 02-02-PLAN.md — Squarified Treemap 布局算法
-- [ ] 02-03-PLAN.md — Treemap egui 渲染（矩形、标签、颜色映射）
+- [x] 02-03-PLAN.md — Treemap egui 渲染（矩形、标签、颜色映射）
 - [ ] 02-04-PLAN.md — 下钻交互 + 面包屑导航
 - [ ] 02-05-PLAN.md — 详情面板 + 选中高亮
 
@@ -75,5 +75,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. 扫描引擎 | v1.0 | 4/4 | Complete   | 2026-05-05 |
-| 2. Treemap 可视化 | v1.0 | 2/5 | Executing | - |
+| 2. Treemap 可视化 | v1.0 | 3/5 | Executing | - |
 | 3. 快照与对比 | v1.0 | 0/4 | Not started | - |

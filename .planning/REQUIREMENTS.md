@@ -16,7 +16,7 @@
 ### Treemap 可视化
 
 - [x] **VIS-01**: 基于空间占比的矩形树图（Squarified Treemap 算法）
-- [ ] **VIS-02**: 每个色块显示目录/文件名、大小、占比
+- [x] **VIS-02**: 每个色块显示目录/文件名、大小、占比
 - [ ] **VIS-03**: 点击目录块进入子目录视图
 - [ ] **VIS-04**: 面包屑导航，支持返回任意上层目录
 - [ ] **VIS-05**: 选中项详情面板（完整路径、大小、占比、文件/子目录数量）
@@ -70,7 +70,7 @@
 | SCAN-04 | Phase 1 | Complete |
 | SCAN-05 | Phase 1 | Complete |
 | VIS-01 | Phase 2 | Complete |
-| VIS-02 | Phase 2 | Pending |
+| VIS-02 | Phase 2 | Complete |
 | VIS-03 | Phase 2 | Pending |
 | VIS-04 | Phase 2 | Pending |
 | VIS-05 | Phase 2 | Pending |
