@@ -40,16 +40,54 @@ impl FileCategory {
     }
 }
 
-pub fn categorize(_path: &Path) -> FileCategory {
-    todo!()
+pub fn categorize(path: &Path) -> FileCategory {
+    let ext = path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "txt" | "doc" | "docx" | "pdf" | "xls" | "xlsx" | "ppt" | "pptx" | "rtf" | "odt" => FileCategory::Document,
+        "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tiff" | "tif" | "raw" | "heic" => FileCategory::Image,
+        "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" | "ts" => FileCategory::Video,
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "wma" | "m4a" | "opus" | "ape" => FileCategory::Audio,
+        "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "lz" | "cab" | "iso" => FileCategory::Archive,
+        "rs" | "py" | "js" | "ts" | "java" | "c" | "cpp" | "h" | "hpp" | "go" | "rb" | "php" | "swift" | "kt" | "scala" | "html" | "css" | "xml" | "json" | "yaml" | "yml" | "toml" | "sql" | "sh" | "bat" | "ps1" => FileCategory::Code,
+        "exe" | "msi" | "com" | "scr" => FileCategory::Executable,
+        "dll" | "sys" | "drv" | "ocx" | "cpl" | "efi" => FileCategory::System,
+        "tmp" | "temp" | "bak" | "old" | "log" | "cache" => FileCategory::Temp,
+        _ => FileCategory::Other,
+    }
 }
 
-pub fn categorize_entry(_entry: &Entry) -> FileCategory {
-    todo!()
+pub fn categorize_entry(entry: &Entry) -> FileCategory {
+    match entry {
+        Entry::File(f) => categorize(Path::new(&f.name)),
+        Entry::Dir(d) => categorize(Path::new(&d.name)),
+        Entry::Others(o) => categorize(Path::new(&o.name)),
+        Entry::Symlink(p) => categorize(p),
+        Entry::AccessDenied { path } => categorize(path),
+    }
 }
 
-pub fn dominant_category(_dir: &DirNode) -> FileCategory {
-    todo!()
+pub fn dominant_category(dir: &DirNode) -> FileCategory {
+    let mut size_by_cat: std::collections::HashMap<FileCategory, u64> = std::collections::HashMap::new();
+    accumulate_categories(dir, &mut size_by_cat);
+    size_by_cat.into_iter()
+        .max_by_key(|&(_, size)| size)
+        .map(|(cat, _)| cat)
+        .unwrap_or(FileCategory::Other)
+}
+
+fn accumulate_categories(dir: &DirNode, acc: &mut std::collections::HashMap<FileCategory, u64>) {
+    for child in &dir.children {
+        match child {
+            Entry::Dir(d) => accumulate_categories(d, acc),
+            _ => {
+                let cat = categorize_entry(child);
+                *acc.entry(cat).or_insert(0) += child.size();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
