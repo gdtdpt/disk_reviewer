@@ -6,9 +6,35 @@ pub struct DriveInfo {
     pub used_bytes: u64,
 }
 
-// Phase 1-02 实现此函数
 pub fn enumerate_drives() -> Vec<DriveInfo> {
-    todo!()
+    let bitmask = unsafe { windows::Win32::Storage::FileSystem::GetLogicalDrives() };
+    let mut drives = Vec::new();
+    for i in 0..26 {
+        if bitmask & (1 << i) != 0 {
+            let letter = (b'A' + i as u8) as char;
+            let path = format!(r"{}:\", letter);
+            let mut total: u64 = 0;
+            let mut free: u64 = 0;
+            let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+            let result = unsafe {
+                windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(
+                    windows::core::PCWSTR(wide.as_ptr()),
+                    None,
+                    Some(&mut total),
+                    Some(&mut free),
+                )
+            };
+            if result.is_ok() {
+                drives.push(DriveInfo {
+                    letter,
+                    total_bytes: total,
+                    free_bytes: free,
+                    used_bytes: total - free,
+                });
+            }
+        }
+    }
+    drives
 }
 
 #[cfg(test)]
