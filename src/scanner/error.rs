@@ -1,6 +1,7 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ScanError {
     #[error("Access denied: {path}")]
     AccessDenied { path: PathBuf },
@@ -12,5 +13,11 @@ pub enum ScanError {
     Win32(u32),
 
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(Arc<std::io::Error>),
+}
+
+impl From<std::io::Error> for ScanError {
+    fn from(err: std::io::Error) -> Self {
+        ScanError::Io(Arc::new(err))
+    }
 }
