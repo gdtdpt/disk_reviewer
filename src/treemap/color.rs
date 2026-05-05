@@ -1,0 +1,146 @@
+use crate::scanner::{DirNode, Entry, FileEntry};
+use egui::Color32;
+use std::path::Path;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FileCategory {
+    Document, Image, Video, Audio, Archive,
+    Code, Executable, System, Temp, Other,
+}
+
+impl FileCategory {
+    pub fn color(&self) -> Color32 {
+        match self {
+            FileCategory::Document   => Color32::from_rgb(70, 130, 180),
+            FileCategory::Image      => Color32::from_rgb(46, 139, 87),
+            FileCategory::Video      => Color32::from_rgb(220, 20, 60),
+            FileCategory::Audio      => Color32::from_rgb(255, 140, 0),
+            FileCategory::Archive    => Color32::from_rgb(128, 0, 128),
+            FileCategory::Code       => Color32::from_rgb(0, 128, 128),
+            FileCategory::Executable => Color32::from_rgb(184, 134, 11),
+            FileCategory::System     => Color32::from_rgb(192, 192, 192),
+            FileCategory::Temp       => Color32::from_rgb(169, 169, 169),
+            FileCategory::Other      => Color32::from_rgb(105, 105, 105),
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            FileCategory::Document   => "文档",
+            FileCategory::Image      => "图片",
+            FileCategory::Video      => "视频",
+            FileCategory::Audio      => "音频",
+            FileCategory::Archive    => "压缩包",
+            FileCategory::Code       => "代码",
+            FileCategory::Executable => "可执行",
+            FileCategory::System     => "系统",
+            FileCategory::Temp       => "临时",
+            FileCategory::Other      => "其他",
+        }
+    }
+}
+
+pub fn categorize(_path: &Path) -> FileCategory {
+    todo!()
+}
+
+pub fn categorize_entry(_entry: &Entry) -> FileCategory {
+    todo!()
+}
+
+pub fn dominant_category(_dir: &DirNode) -> FileCategory {
+    todo!()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_categorize_document() {
+        assert_eq!(categorize(Path::new("test.txt")), FileCategory::Document);
+        assert_eq!(categorize(Path::new("report.pdf")), FileCategory::Document);
+        assert_eq!(categorize(Path::new("data.xlsx")), FileCategory::Document);
+    }
+
+    #[test]
+    fn test_categorize_image() {
+        assert_eq!(categorize(Path::new("photo.jpg")), FileCategory::Image);
+        assert_eq!(categorize(Path::new("icon.png")), FileCategory::Image);
+    }
+
+    #[test]
+    fn test_categorize_video() {
+        assert_eq!(categorize(Path::new("movie.mp4")), FileCategory::Video);
+        assert_eq!(categorize(Path::new("clip.mkv")), FileCategory::Video);
+    }
+
+    #[test]
+    fn test_categorize_audio() {
+        assert_eq!(categorize(Path::new("song.mp3")), FileCategory::Audio);
+        assert_eq!(categorize(Path::new("track.flac")), FileCategory::Audio);
+    }
+
+    #[test]
+    fn test_categorize_archive() {
+        assert_eq!(categorize(Path::new("data.zip")), FileCategory::Archive);
+        assert_eq!(categorize(Path::new("backup.7z")), FileCategory::Archive);
+    }
+
+    #[test]
+    fn test_categorize_code() {
+        assert_eq!(categorize(Path::new("main.rs")), FileCategory::Code);
+        assert_eq!(categorize(Path::new("app.py")), FileCategory::Code);
+    }
+
+    #[test]
+    fn test_categorize_executable() {
+        assert_eq!(categorize(Path::new("app.exe")), FileCategory::Executable);
+        assert_eq!(categorize(Path::new("setup.msi")), FileCategory::Executable);
+    }
+
+    #[test]
+    fn test_categorize_system() {
+        assert_eq!(categorize(Path::new("kernel.dll")), FileCategory::System);
+        assert_eq!(categorize(Path::new("driver.sys")), FileCategory::System);
+    }
+
+    #[test]
+    fn test_categorize_temp() {
+        assert_eq!(categorize(Path::new("cache.tmp")), FileCategory::Temp);
+        assert_eq!(categorize(Path::new("old.log")), FileCategory::Temp);
+    }
+
+    #[test]
+    fn test_categorize_other() {
+        assert_eq!(categorize(Path::new("data.xyz")), FileCategory::Other);
+        assert_eq!(categorize(Path::new("noext")), FileCategory::Other);
+    }
+
+    #[test]
+    fn test_document_color() {
+        let c = FileCategory::Document.color();
+        assert_eq!(c.r(), 70);
+        assert_eq!(c.g(), 130);
+        assert_eq!(c.b(), 180);
+    }
+
+    #[test]
+    fn test_dominant_category_documents() {
+        use std::path::PathBuf;
+        let dir = DirNode {
+            path: PathBuf::from(r"C:\docs"),
+            name: "docs".to_string(),
+            total_size: 300,
+            file_count: 3,
+            children: vec![
+                Entry::File(FileEntry { name: "a.txt".to_string(), size: 100 }),
+                Entry::File(FileEntry { name: "b.pdf".to_string(), size: 100 }),
+                Entry::File(FileEntry { name: "c.jpg".to_string(), size: 100 }),
+            ],
+            access_denied: false,
+        };
+        let dom = dominant_category(&dir);
+        assert_eq!(dom, FileCategory::Document);
+    }
+}
