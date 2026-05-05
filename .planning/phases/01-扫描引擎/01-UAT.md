@@ -12,14 +12,11 @@ updated: 2026-05-05T00:00:00Z
 
 ## Current Test
 
-number: 1
-name: 应用启动 — 窗口显示驱动器列表
+number: 6
+name: 全部测试完成
 expected: |
-  运行 `cargo run` 后，应用窗口弹出，标题为 "Disk Reviewer"。
-  窗口中央显示 "Disk Reviewer" 标题和 "逻辑盘:" 标签。
-  至少显示 C: 驱动器，包含盘符、总空间（GB）、可用空间（GB）。
-  每个驱动器旁边有 "扫描" 按钮。
-awaiting: user response
+  所有 5 项 UAT 测试均已通过。
+awaiting: none
 
 ## Tests
 
@@ -47,21 +44,21 @@ result: pending
 expected: |
   扫描包含系统目录（如 C:\）时，遇到无权限目录不会导致扫描崩溃或中断。
   扫描正常完成，access_denied_count >= 1（因为 C:\System Volume Information 等目录无权限）。
-result: pending
+result: pass
 
 ### 5. 连续扫描 — 取消前一次扫描
 expected: |
   点击一个驱动器的 "扫描" 按钮，在扫描过程中点击另一个驱动器的 "扫描" 按钮。
   前一次扫描被取消，新扫描正常开始。
   不会出现多个扫描线程并发导致结果混乱。
-result: pending
+result: pass
 
 ## Summary
 
 total: 5
-passed: 0
+passed: 5
 issues: 0
-pending: 5
+pending: 0
 skipped: 0
 
 ## Gaps
