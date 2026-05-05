@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::platform::drives::{self, DriveInfo};
-use crate::scanner::{scan_directory, DirNode, ScanEvent};
+use crate::scanner::{scan_directory, AggThresholds, DirNode, ScanEvent};
 
 pub struct DiskReviewerApp {
     pub drives: Vec<DriveInfo>,
@@ -37,7 +37,11 @@ impl DiskReviewerApp {
         thread::spawn(move || {
             let start = std::time::Instant::now();
             match scan_directory(&path) {
-                Ok(root) => {
+                Ok(mut root) => {
+                    // SCAN-05: 执行 Others 聚合后处理
+                    let thresholds = AggThresholds::default();
+                    root.finish(&thresholds);
+
                     let total_files = root.file_count;
                     let access_denied_count = count_access_denied(&root);
                     // 通过 channel 推送完成事件（SCAN-03 增量推送）
