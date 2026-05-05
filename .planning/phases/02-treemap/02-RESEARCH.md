@@ -702,18 +702,19 @@ fn format_size(bytes: u64) -> String {
 | A5 | 布局使用归一化坐标后缩放 | Code Example 1 | 极端情况可能有 1px 误差，可接受 |
 | A6 | 面包屑根节点使用 DirNode.name | Code Example 2 | 需确认 Phase 1 中 name 格式 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **DirNode.name 的格式是什么？**
-   - 我们知道：DirNode 有 `name: String` 字段
-   - 不明确：根节点的 name 是 "C:" 还是 "C:\\"
-   - 建议：在 Plan 02-01 中确认
+1. **DirNode.name 的格式是什么？** ✅ RESOLVED
+   - 根节点 name = 路径最后一段（如 "C:" 或 "Users"），从 Win32 FindData.cFileName 提取
+   - 面包屑根段使用 scan_result.name，子段使用 dir.name
+   - 无需在 Plan 02-01 中特殊处理，直接使用 DirNode.name 即可
 
-2. **是否需要"返回上级"按钮？**
-   - 建议：面包屑已足够，不需要额外按钮
+2. **是否需要"返回上级"按钮？** ✅ RESOLVED
+   - 不需要。面包屑已足够（点击根节点返回顶层，点击任意段跳转到对应层级）
 
-3. **选中高亮的视觉样式？**
-   - 建议：使用白色 2px 边框高亮选中矩形
+3. **选中高亮的视觉样式？** ✅ RESOLVED
+   - 使用白色 2px 边框（Stroke::new(2.0, Color32::WHITE), StrokeKind::Middle）
+   - 在 paint_treemap 中通过 selected_index 参数控制
 
 ## Environment Availability
 
