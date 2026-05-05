@@ -1,7 +1,7 @@
 use crate::scanner::{DirNode, Entry, FileEntry};
+use crate::treemap::color::{categorize_entry, dominant_category};
 use egui::emath::{pos2, vec2, Rect};
 use std::path::PathBuf;
-use egui::Color32;
 
 pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::TreemapNode> {
     let total_size = dir.total_size as f64;
@@ -9,12 +9,12 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
         return Vec::new();
     }
 
-    // 1. Collect valid entries (size > 0), record original index
-    let mut items: Vec<(usize, u64, String, bool)> = Vec::new();
+    // 1. Collect valid entries (size > 0), keep &Entry reference
+    let mut items: Vec<(usize, &Entry, u64)> = Vec::new();
     for (idx, child) in dir.children.iter().enumerate() {
         let size = child.size();
         if size == 0 { continue; }
-        items.push((idx, size, entry_name(child), is_dir(child)));
+        items.push((idx, child, size));
     }
 
     if items.is_empty() {
@@ -22,15 +22,15 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
     }
 
     // 2. Sort by size descending
-    items.sort_by_key(|&(_, size, _, _)| std::cmp::Reverse(size));
+    items.sort_by_key(|&(_, _, size)| std::cmp::Reverse(size));
 
     // 3. Run squarified layout
-    let sizes: Vec<f64> = items.iter().map(|&(_, s, _, _)| s as f64).collect();
+    let sizes: Vec<f64> = items.iter().map(|&(_, _, s)| s as f64).collect();
     let nrects = squarify_recursive(&sizes, 0.0, 0.0, 1.0, 1.0);
 
     // 4. Scale to canvas + assemble TreemapNode
     items.into_iter().zip(nrects.into_iter())
-        .map(|((entry_index, size, label, is_dir), nr)| {
+        .map(|((entry_index, entry, size), nr)| {
             let rect = Rect::from_min_size(
                 pos2(
                     canvas.min.x + nr.x * canvas.width(),
@@ -41,13 +41,18 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
                     nr.h * canvas.height(),
                 ),
             );
+            let cat = if let Entry::Dir(d) = entry {
+                dominant_category(d)
+            } else {
+                categorize_entry(entry)
+            };
             crate::treemap::TreemapNode {
                 rect,
-                label,
-                color: Color32::from_rgb(150, 150, 150),
+                label: entry_name(entry),
+                color: cat.color(),
                 depth: 0,
                 entry_index,
-                is_dir,
+                is_dir: matches!(entry, Entry::Dir(_)),
                 size,
                 percentage: (size as f64 / total_size * 100.0) as f32,
             }
@@ -141,7 +146,7 @@ fn entry_name(entry: &Entry) -> String {
     }
 }
 
-fn is_dir(entry: &Entry) -> bool {
+fn _is_dir(entry: &Entry) -> bool {
     matches!(entry, Entry::Dir(_))
 }
 
