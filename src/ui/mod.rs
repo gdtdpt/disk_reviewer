@@ -1,1 +1,3 @@
-// Phase 1+: UI 组件（状态面板等）
+pub mod breadcrumb;
+
+pub use breadcrumb::breadcrumb_ui;
