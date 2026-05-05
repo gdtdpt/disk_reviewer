@@ -125,6 +125,16 @@ None - no external service configuration required.
 - SCAN-01 需求已完成
 - 下游 plan (01-03 目录遍历) 已在前驱 wave 中实现，app.rs 已包含扫描线程集成
 
+## Self-Check: PASSED
+
+- SUMMARY.md exists: YES
+- RED commit (1160142): FOUND
+- GREEN commit (264fcc5): FOUND
+- Final docs commit (24938c0): FOUND
+- All 5 tests pass: YES
+- cargo build passes: YES
+- SCAN-01 marked complete: YES
+
 ---
 *Phase: 01-扫描引擎*
 *Plan: 02*
