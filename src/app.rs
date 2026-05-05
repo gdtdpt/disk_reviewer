@@ -1,5 +1,6 @@
 use crossbeam_channel::{bounded, Receiver, TryRecvError};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
@@ -12,6 +13,7 @@ pub struct DiskReviewerApp {
     pub scan_progress: Option<ScanEvent>,
     event_receiver: Option<Receiver<ScanEvent>>,
     pub status_message: String,
+    cancel_token: Option<Arc<AtomicBool>>,
 }
 
 impl DiskReviewerApp {
@@ -23,14 +25,24 @@ impl DiskReviewerApp {
             scan_progress: None,
             event_receiver: None,
             status_message: "就绪".to_string(),
+            cancel_token: None,
         }
     }
 
     fn start_scan(&mut self, path: PathBuf) {
+        // WR-04: 取消前一次扫描，防止多线程并发
+        if let Some(token) = &self.cancel_token {
+            token.store(true, Ordering::SeqCst);
+        }
+
         let (sender, receiver) = bounded::<ScanEvent>(256);
         self.event_receiver = Some(receiver);
         self.status_message = format!("正在扫描: {}", path.display());
         self.scan_result = None;
+        self.scan_progress = None;
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.cancel_token = Some(cancel.clone());
 
         // 在后台线程启动扫描（UI 线程保持响应）
         // scan_directory() 内部使用 rayon::scope() 并行遍历子目录（D-01）
@@ -38,6 +50,10 @@ impl DiskReviewerApp {
             let start = std::time::Instant::now();
             match scan_directory(&path) {
                 Ok(mut root) => {
+                    // 检查是否已被取消
+                    if cancel.load(Ordering::SeqCst) {
+                        return;
+                    }
                     // SCAN-05: 执行 Others 聚合后处理
                     let thresholds = AggThresholds::default();
                     root.finish(&thresholds);
@@ -53,10 +69,12 @@ impl DiskReviewerApp {
                     }).ok();
                 }
                 Err(e) => {
-                    sender.send(ScanEvent::Error {
-                        path: path.clone(),
-                        error: e,
-                    }).ok();
+                    if !cancel.load(Ordering::SeqCst) {
+                        sender.send(ScanEvent::Error {
+                            path: path.clone(),
+                            error: e,
+                        }).ok();
+                    }
                 }
             }
         });

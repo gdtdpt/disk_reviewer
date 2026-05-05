@@ -94,8 +94,8 @@ pub fn scan_directory(path: &Path) -> Result<DirNode, ScanError> {
         Err(_) => {
             let err = unsafe { GetLastError() };
             if err.0 == 5 {
-                node.access_denied = true;
-                return Ok(node);
+                // D-04: 返回 AccessDenied 错误，由调用方记录为 Entry::AccessDenied
+                return Err(ScanError::AccessDenied { path: path.to_path_buf() });
             }
             return Err(ScanError::Win32(err.0));
         }
