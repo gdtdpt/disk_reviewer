@@ -8,14 +8,14 @@
 ### 扫描引擎
 
 - [x] **SCAN-01**: 枚举 Windows 所有逻辑盘并显示盘符和总空间
-- [ ] **SCAN-02**: 异步遍历指定目录的完整目录树
-- [ ] **SCAN-03**: 扫描过程中增量推送结果到 UI，不阻塞界面
+- [x] **SCAN-02**: 异步遍历指定目录的完整目录树
+- [x] **SCAN-03**: 扫描过程中增量推送结果到 UI，不阻塞界面
 - [x] **SCAN-04**: 跳过无权限访问的目录并在结果中标注
 - [x] **SCAN-05**: 大文件数量目录下，小文件自动聚合为 "Others" 条目
 
 ### Treemap 可视化
 
-- [ ] **VIS-01**: 基于空间占比的矩形树图（Squarified Treemap 算法）
+- [x] **VIS-01**: 基于空间占比的矩形树图（Squarified Treemap 算法）
 - [ ] **VIS-02**: 每个色块显示目录/文件名、大小、占比
 - [ ] **VIS-03**: 点击目录块进入子目录视图
 - [ ] **VIS-04**: 面包屑导航，支持返回任意上层目录
@@ -65,11 +65,11 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SCAN-01 | Phase 1 | Complete |
-| SCAN-02 | Phase 1 | Pending |
-| SCAN-03 | Phase 1 | Pending |
+| SCAN-02 | Phase 1 | Complete |
+| SCAN-03 | Phase 1 | Complete |
 | SCAN-04 | Phase 1 | Complete |
-| SCAN-05 | Phase 2 | Complete |
-| VIS-01 | Phase 2 | Pending |
+| SCAN-05 | Phase 1 | Complete |
+| VIS-01 | Phase 2 | Complete |
 | VIS-02 | Phase 2 | Pending |
 | VIS-03 | Phase 2 | Pending |
 | VIS-04 | Phase 2 | Pending |

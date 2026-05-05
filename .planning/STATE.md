@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: context exhaustion at 76% (2026-05-05)
-last_updated: "2026-05-05T15:02:11.450Z"
+stopped_at: completed plan 02-02 (2026-05-05)
+last_updated: "2026-05-05T15:30:00.000Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 9
-  completed_plans: 5
-  percent: 56
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -26,30 +26,30 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 02 (treemap) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-05-05
 
-Progress: [██████░░░░] 56%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
+- Total plans completed: 3
 - Average duration: 4m
-- Total execution time: 0.08 hours
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-扫描引擎 | 1 | 3m | 3m |
-| 02-treemap | 1 | 5m | 5m |
+| 02-treemap | 2 | 9m | 4.5m |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (3m), 02-01 (5m)
+- Last 5 plans: 01-01 (3m), 02-01 (5m), 02-02 (12m)
 - Trend: Initial
 
 *Updated after each plan completion*
@@ -73,6 +73,8 @@ Recent decisions affecting current work:
 - [Plan 02-01]: nav_stack 空 Vec 表示根层级
 - [Plan 02-01]: rebuild_treemap() 占位，plan 02-02 实现后替换
 - [Plan 02-01]: consume_events() 使用 take-and-restore 模式避免借用冲突
+- [Plan 02-02]: 布局算法按降序排列后输出，不保留输入顺序
+- [Plan 02-02]: 零 size 条目在布局前过滤，不参与计算
 
 ### Pending Todos
 
@@ -90,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-05T15:00:41Z
-Stopped at: Completed plan 02-01 (2026-05-05)
+Last session: 2026-05-05T15:30:00Z
+Stopped at: Completed plan 02-02 (2026-05-05)
 Resume file: None
