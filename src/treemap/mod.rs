@@ -1,1 +1,3 @@
-// Phase 2: Treemap 可视化模块
+pub mod types;
+
+pub use types::TreemapNode;
