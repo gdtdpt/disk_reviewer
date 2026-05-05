@@ -153,9 +153,10 @@ impl DiskReviewerApp {
 
     fn rebuild_treemap(&mut self) {
         if let Some(dir) = self.current_dir() {
-            // plan 02-02 实现 layout_treemap 后替换
-            // self.treemap_nodes = crate::treemap::layout_treemap(dir);
-            let _ = dir; // suppress unused warning until layout_treemap exists
+            self.treemap_nodes = crate::treemap::layout_treemap(
+                dir,
+                egui::emath::Rect::from_min_size(egui::emath::pos2(0.0, 0.0), egui::emath::vec2(1.0, 1.0)),
+            );
         }
     }
 }
