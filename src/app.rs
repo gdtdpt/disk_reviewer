@@ -7,6 +7,8 @@ use std::thread;
 use crate::platform::drives::{self, DriveInfo};
 use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
 use crate::treemap;
+use crate::treemap::paint_treemap;
+use egui::emath::{pos2, vec2, Rect};
 
 pub struct DiskReviewerApp {
     pub drives: Vec<DriveInfo>,
@@ -198,6 +200,24 @@ impl eframe::App for DiskReviewerApp {
 
             ui.separator();
             ui.label(&self.status_message);
+
+            // Treemap 渲染区域
+            if !self.treemap_nodes.is_empty() {
+                ui.separator();
+                ui.label("空间分布:");
+                let canvas_rect = Rect::from_min_size(
+                    pos2(0.0, 0.0),
+                    vec2(ui.available_width(), ui.available_height().max(200.0)),
+                );
+                if let Some(dir) = self.current_dir() {
+                    self.treemap_nodes = crate::treemap::layout_treemap(dir, canvas_rect);
+                }
+                if let Some(clicked) = paint_treemap(
+                    ui, &self.treemap_nodes, self.selected_index,
+                ) {
+                    self.selected_index = Some(clicked);
+                }
+            }
 
             // 扫描结果预览
             if let Some(result) = &self.scan_result {

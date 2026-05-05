@@ -48,7 +48,7 @@ pub fn categorize(path: &Path) -> FileCategory {
     match ext.as_str() {
         "txt" | "doc" | "docx" | "pdf" | "xls" | "xlsx" | "ppt" | "pptx" | "rtf" | "odt" => FileCategory::Document,
         "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tiff" | "tif" | "raw" | "heic" => FileCategory::Image,
-        "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" | "ts" => FileCategory::Video,
+        "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" => FileCategory::Video,
         "mp3" | "wav" | "flac" | "aac" | "ogg" | "wma" | "m4a" | "opus" | "ape" => FileCategory::Audio,
         "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" | "lz" | "cab" | "iso" => FileCategory::Archive,
         "rs" | "py" | "js" | "ts" | "java" | "c" | "cpp" | "h" | "hpp" | "go" | "rb" | "php" | "swift" | "kt" | "scala" | "html" | "css" | "xml" | "json" | "yaml" | "yml" | "toml" | "sql" | "sh" | "bat" | "ps1" => FileCategory::Code,
