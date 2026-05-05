@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: MVP
 status: executing
-stopped_at: Completed plan 02-03 (2026-05-05)
-last_updated: "2026-05-05T15:32:38.555Z"
+stopped_at: Completed plan 02-05 (2026-05-05)
+last_updated: "2026-05-05T15:39:00Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 89
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -21,36 +21,36 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** 直观展示磁盘空间占用，让用户一眼看出"谁占了多少空间"
-**Current focus:** Phase 02 — treemap
+**Current focus:** Phase 02 — treemap (complete)
 
 ## Current Position
 
-Phase: 02 (treemap) — EXECUTING
+Phase: 02 (treemap) — COMPLETE
 Plan: 5 of 5
-Status: Ready to execute
+Status: Ready for phase transition
 Last activity: 2026-05-05
 
-Progress: [█████████░] 89%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 4m
-- Total execution time: 0.19 hours
+- Total execution time: 0.23 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-扫描引擎 | 1 | 3m | 3m |
-| 02-treemap | 3 | 16m | 5.3m |
+| 02-treemap | 4 | 20m | 5.0m |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (3m), 02-01 (5m), 02-02 (12m), 02-03 (7m)
-- Trend: Initial
+- Last 5 plans: 02-02 (12m), 02-03 (7m), 02-04, 02-05 (4m)
+- Trend: Improving
 
 *Updated after each plan completion*
 
@@ -79,6 +79,8 @@ Recent decisions affecting current work:
 - [Plan 02-03]: 目录颜色由 dominant_category() 递归统计决定
 - [Plan 02-03]: 标签面积阈值 400 平方像素，不足则悬停 tooltip
 - [Plan 02-03]: CornerRadius::same() 使用 u8 类型（egui 0.33 API）
+- [Plan 02-05]: TopBottomPanel 借用冲突 — take-and-restore 提取 nav_depth
+- [Plan 02-05]: FileCategory 在 treemap::color 子模块，非 treemap 级 re-export
 
 ### Pending Todos
 
@@ -96,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-05T15:32:38.546Z
-Stopped at: Completed plan 02-03 (2026-05-05)
+Last session: 2026-05-05T15:39:00Z
+Stopped at: Completed plan 02-05 (2026-05-05)
 Resume file: None

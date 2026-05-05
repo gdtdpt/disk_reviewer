@@ -11,7 +11,7 @@
 ## Phases
 
 - [x] **Phase 1: 扫描引擎** — 异步目录遍历，输出目录树结构 (completed 2026-05-05)
-- [ ] **Phase 2: Treemap 可视化** — 矩形树图渲染 + 下钻交互
+- [x] **Phase 2: Treemap 可视化** — 矩形树图渲染 + 下钻交互 (completed 2026-05-05)
 - [ ] **Phase 3: 快照与对比** — 快照存储 + 差异检测 + 高亮显示
 
 ## Phase Details
@@ -50,7 +50,7 @@ Plans:
 - [x] 02-02-PLAN.md — Squarified Treemap 布局算法
 - [x] 02-03-PLAN.md — Treemap egui 渲染（矩形、标签、颜色映射）
 - [x] 02-04-PLAN.md — 下钻交互 + 面包屑导航
-- [ ] 02-05-PLAN.md — 详情面板 + 选中高亮
+- [x] 02-05-PLAN.md — 详情面板 + 选中高亮 [VIS-05]
 
 ### Phase 3: 快照与对比
 **Goal**: 保存扫描快照，支持历史对比并高亮差异
@@ -75,5 +75,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. 扫描引擎 | v1.0 | 4/4 | Complete   | 2026-05-05 |
-| 2. Treemap 可视化 | v1.0 | 4/5 | In Progress|  |
+| 2. Treemap 可视化 | v1.0 | 5/5 | Complete   | 2026-05-05 |
 | 3. 快照与对比 | v1.0 | 0/4 | Not started | - |

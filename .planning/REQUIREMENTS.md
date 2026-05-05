@@ -19,7 +19,7 @@
 - [x] **VIS-02**: 每个色块显示目录/文件名、大小、占比
 - [x] **VIS-03**: 点击目录块进入子目录视图
 - [x] **VIS-04**: 面包屑导航，支持返回任意上层目录
-- [ ] **VIS-05**: 选中项详情面板（完整路径、大小、占比、文件/子目录数量）
+- [x] **VIS-05**: 选中项详情面板（完整路径、大小、占比、文件/子目录数量）
 
 ### 快照与对比
 
@@ -73,7 +73,7 @@
 | VIS-02 | Phase 2 | Complete |
 | VIS-03 | Phase 2 | Complete |
 | VIS-04 | Phase 2 | Complete |
-| VIS-05 | Phase 2 | Pending |
+| VIS-05 | Phase 2 | Complete |
 | SNAP-01 | Phase 3 | Pending |
 | SNAP-02 | Phase 3 | Pending |
 | SNAP-03 | Phase 3 | Pending |
