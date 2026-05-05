@@ -190,23 +190,37 @@ impl DiskReviewerApp {
 
 impl eframe::App for DiskReviewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // 消费扫描事件
         self.consume_events(ctx);
 
+        // 面包屑在顶部 — take-and-restore 模式避免借用冲突
+        let nav_action: Option<usize> = self.scan_result.as_ref().and_then(|root| {
+            let mut depth = None;
+            egui::TopBottomPanel::top("breadcrumb").show(ctx, |ui| {
+                depth = breadcrumb_ui(ui, root, &self.nav_stack);
+            });
+            depth
+        });
+        if let Some(d) = nav_action {
+            self.navigate_to_depth(d);
+        }
+
+        // 右侧详情面板 (D-14: 固定宽度 320px)
+        egui::SidePanel::right("detail_panel")
+            .exact_width(320.0)
+            .show(ctx, |ui| {
+                let selected = self
+                    .selected_index
+                    .and_then(|i| self.treemap_nodes.get(i));
+                let current_dir = self.current_dir();
+                crate::ui::info_panel::info_panel_ui(ui, selected, current_dir);
+            });
+
+        // 左侧 Treemap 画布 (D-14: 剩余 ~70%)
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disk Reviewer");
+            ui.separator();
 
-            // 面包屑导航
-            if let Some(root) = &self.scan_result {
-                if let Some(depth) = crate::ui::breadcrumb::breadcrumb_ui(
-                    ui, root, &self.nav_stack,
-                ) {
-                    self.navigate_to_depth(depth);
-                }
-                ui.separator();
-            }
-
-            // 驱动器列表
+            // 驱动器列表（保留）
             ui.label("逻辑盘:");
             let scan_requests: Vec<PathBuf> = self.drives.iter().filter_map(|drive| {
                 let mut clicked = false;
@@ -227,7 +241,6 @@ impl eframe::App for DiskReviewerApp {
                     None
                 }
             }).collect();
-
             for path in scan_requests {
                 self.start_scan(path);
             }
@@ -235,42 +248,29 @@ impl eframe::App for DiskReviewerApp {
             ui.separator();
             ui.label(&self.status_message);
 
-            // Treemap 渲染区域
+            // Treemap 渲染
             if !self.treemap_nodes.is_empty() {
                 ui.separator();
-                ui.label("空间分布:");
                 let canvas_rect = Rect::from_min_size(
                     pos2(0.0, 0.0),
                     vec2(ui.available_width(), ui.available_height().max(200.0)),
                 );
                 if let Some(dir) = self.current_dir() {
-                    self.treemap_nodes = crate::treemap::layout_treemap(dir, canvas_rect);
+                    self.rebuild_treemap(canvas_rect);
                 }
                 if let Some(clicked) = paint_treemap(
                     ui, &self.treemap_nodes, self.selected_index,
                 ) {
-                    // Check if clicked entry is a directory -> drill down
                     if let Some(dir) = self.current_dir() {
                         if let Some(entry) = dir.children.get(clicked) {
-                            if matches!(entry, crate::scanner::Entry::Dir(_)) {
+                            if matches!(entry, Entry::Dir(_)) {
                                 self.drill_down(clicked);
                                 return;
                             }
                         }
                     }
-                    // Non-directory -> select
                     self.selected_index = Some(clicked);
                 }
-            }
-
-            // 扫描结果预览
-            if let Some(result) = &self.scan_result {
-                ui.label(format!(
-                    "根目录: {}  总大小: {:.1} MB  文件数: {}",
-                    result.path.display(),
-                    result.total_size as f64 / 1e6,
-                    result.file_count
-                ));
             }
         });
     }
