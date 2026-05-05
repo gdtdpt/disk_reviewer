@@ -8,6 +8,7 @@ use crate::platform::drives::{self, DriveInfo};
 use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
 use crate::treemap;
 use crate::treemap::paint_treemap;
+use crate::ui::breadcrumb::breadcrumb_ui;
 use egui::emath::{pos2, vec2, Rect};
 
 pub struct DiskReviewerApp {
@@ -137,7 +138,10 @@ impl DiskReviewerApp {
             }
         }
         if needs_rebuild {
-            self.rebuild_treemap();
+            self.rebuild_treemap(Rect::from_min_size(
+                pos2(0.0, 0.0),
+                vec2(1.0, 1.0),
+            ));
         }
     }
 
@@ -153,12 +157,33 @@ impl DiskReviewerApp {
         Some(current)
     }
 
-    fn rebuild_treemap(&mut self) {
+    fn drill_down(&mut self, child_index: usize) {
         if let Some(dir) = self.current_dir() {
-            self.treemap_nodes = crate::treemap::layout_treemap(
-                dir,
-                egui::emath::Rect::from_min_size(egui::emath::pos2(0.0, 0.0), egui::emath::vec2(1.0, 1.0)),
-            );
+            if let Some(crate::scanner::Entry::Dir(_)) = dir.children.get(child_index) {
+                self.nav_stack.push(child_index);
+                self.selected_index = None;
+                self.rebuild_treemap(Rect::from_min_size(
+                    pos2(0.0, 0.0),
+                    vec2(1.0, 1.0),
+                ));
+            }
+        }
+    }
+
+    fn navigate_to_depth(&mut self, depth: usize) {
+        self.nav_stack.truncate(depth);
+        self.selected_index = None;
+        self.rebuild_treemap(Rect::from_min_size(
+            pos2(0.0, 0.0),
+            vec2(1.0, 1.0),
+        ));
+    }
+
+    fn rebuild_treemap(&mut self, canvas: Rect) {
+        if let Some(dir) = self.current_dir() {
+            self.treemap_nodes = crate::treemap::layout_treemap(dir, canvas);
+        } else {
+            self.treemap_nodes.clear();
         }
     }
 }
@@ -170,7 +195,16 @@ impl eframe::App for DiskReviewerApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disk Reviewer");
-            ui.separator();
+
+            // 面包屑导航
+            if let Some(root) = &self.scan_result {
+                if let Some(depth) = crate::ui::breadcrumb::breadcrumb_ui(
+                    ui, root, &self.nav_stack,
+                ) {
+                    self.navigate_to_depth(depth);
+                }
+                ui.separator();
+            }
 
             // 驱动器列表
             ui.label("逻辑盘:");
@@ -215,6 +249,16 @@ impl eframe::App for DiskReviewerApp {
                 if let Some(clicked) = paint_treemap(
                     ui, &self.treemap_nodes, self.selected_index,
                 ) {
+                    // Check if clicked entry is a directory -> drill down
+                    if let Some(dir) = self.current_dir() {
+                        if let Some(entry) = dir.children.get(clicked) {
+                            if matches!(entry, crate::scanner::Entry::Dir(_)) {
+                                self.drill_down(clicked);
+                                return;
+                            }
+                        }
+                    }
+                    // Non-directory -> select
                     self.selected_index = Some(clicked);
                 }
             }
