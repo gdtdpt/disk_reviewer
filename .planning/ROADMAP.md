@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: 扫描引擎** — 异步目录遍历，输出目录树结构
+- [x] **Phase 1: 扫描引擎** — 异步目录遍历，输出目录树结构 (completed 2026-05-05)
 - [ ] **Phase 2: Treemap 可视化** — 矩形树图渲染 + 下钻交互
 - [ ] **Phase 3: 快照与对比** — 快照存储 + 差异检测 + 高亮显示
 
@@ -31,7 +31,7 @@ Plans:
 - [x] 01-01-PLAN.md — 项目初始化 + Rust 工程脚手架 [SCAN-01, SCAN-02, SCAN-03]
 - [x] 01-02-PLAN.md — 逻辑盘枚举（GetLogicalDrives + GetDiskFreeSpaceExW）[SCAN-01]
 - [x] 01-03-PLAN.md — 异步目录遍历器（FindFirstFileExW + 增量推送 + channel）[SCAN-02, SCAN-03]
-- [ ] 01-04-PLAN.md — Others 聚合 + AccessDenied 处理完善 [SCAN-04, SCAN-05]
+- [x] 01-04-PLAN.md — Others 聚合 + AccessDenied 处理完善 [SCAN-04, SCAN-05]
 
 ### Phase 2: Treemap 可视化
 **Goal**: 扫描完成后以矩形树图展示空间占比，支持下钻浏览
@@ -74,6 +74,6 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. 扫描引擎 | v1.0 | 3/4 | In Progress|  |
+| 1. 扫描引擎 | v1.0 | 4/4 | Complete   | 2026-05-05 |
 | 2. Treemap 可视化 | v1.0 | 0/5 | Not started | - |
 | 3. 快照与对比 | v1.0 | 0/4 | Not started | - |
