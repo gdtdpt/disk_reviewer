@@ -43,3 +43,30 @@ impl Entry {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum ScanEvent {
+    DirEntry {
+        path: PathBuf,
+        size: u64,
+        file_count: u64,
+    },
+    Progress {
+        files_scanned: u64,
+        bytes_scanned: u64,
+        current_path: PathBuf,
+    },
+    AccessDenied {
+        path: PathBuf,
+    },
+    Error {
+        path: PathBuf,
+        error: crate::scanner::error::ScanError,
+    },
+    Complete {
+        root: DirNode,
+        duration: std::time::Duration,
+        total_files: u64,
+        access_denied_count: u64,
+    },
+}
