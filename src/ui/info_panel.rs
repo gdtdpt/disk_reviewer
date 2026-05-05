@@ -1,5 +1,6 @@
 use egui::{Color32, Sense, Ui};
-use crate::treemap::{TreemapNode, FileCategory};
+use crate::treemap::TreemapNode;
+use crate::treemap::color::FileCategory;
 use crate::treemap::renderer::format_size;
 use crate::scanner::DirNode;
 

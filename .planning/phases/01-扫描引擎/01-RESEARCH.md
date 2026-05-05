@@ -679,11 +679,16 @@ pub enum ScanError {
 | A6 | Others 聚合阈值默认值合理 | Pattern 4 | 需根据实际数据调整 |
 | A7 | eframe 0.34.2 使用 App::ui() 而非 update() | Architecture | 需根据实际版本调整 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **rayon 线程数：** 是否限制为 num_cpus - 1？Phase 1 用默认值，Phase 4 调优。
+   - **RESOLVED:** Phase 1 使用 rayon 默认线程数（num_cpus），不做额外限制。Phase 4 调优时再考虑自定义线程池。
+
 2. **每帧消费事件数：** 上限 100 是否合理？Phase 1 固定值，Phase 4 动态调整。
+   - **RESOLVED:** Phase 1 固定值 100，足以在 60fps 下保持 UI 响应。Phase 4 可改为动态调整。
+
 3. **Others 聚合时机：** Phase 1 用后处理（DirNode::finish()），更简单。
+   - **RESOLVED:** Phase 1 使用后处理方式（`DirNode.finish()`），在扫描完成后一次性聚合，实现简单且不会阻塞扫描线程。
 
 ## Environment Availability
 
