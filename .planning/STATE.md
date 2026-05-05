@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: MVP
 status: executing
-stopped_at: Phase 2 context gathered (2026-05-05)
-last_updated: "2026-05-05T12:52:58.685Z"
+stopped_at: context exhaustion at 76% (2026-05-05)
+last_updated: "2026-05-05T15:02:11.450Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_plans: 9
+  completed_plans: 5
+  percent: 56
 ---
 
 # Project State
@@ -21,34 +21,35 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** 直观展示磁盘空间占用，让用户一眼看出"谁占了多少空间"
-**Current focus:** Phase 2 — Treemap 可视化
+**Current focus:** Phase 02 — treemap
 
 ## Current Position
 
-Phase: 2 of 3 (Treemap 可视化)
-Plan: 0 of 5 in current phase
-Status: Context gathered, ready to plan
+Phase: 02 (treemap) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-05-05
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 56%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
-- Average duration: 3m
-- Total execution time: 0.05 hours
+- Total plans completed: 2
+- Average duration: 4m
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-扫描引擎 | 1 | 3m | 3m |
+| 02-treemap | 1 | 5m | 5m |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (3m)
+- Last 5 plans: 01-01 (3m), 02-01 (5m)
 - Trend: Initial
 
 *Updated after each plan completion*
@@ -68,6 +69,10 @@ Recent decisions affecting current work:
 - [Phase 1]: 无权限目录 — 记录并标注，不弹窗
 - [Phase 1]: 文件变更 — 接受快照不完美
 - [Plan 01-01]: eframe/egui 降级至 0.33.0 以兼容 Rust 1.90
+- [Plan 02-01]: TreemapNode 9 字段结构体，Debug + Clone
+- [Plan 02-01]: nav_stack 空 Vec 表示根层级
+- [Plan 02-01]: rebuild_treemap() 占位，plan 02-02 实现后替换
+- [Plan 02-01]: consume_events() 使用 take-and-restore 模式避免借用冲突
 
 ### Pending Todos
 
@@ -85,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-05T12:52:58.678Z
-Stopped at: context exhaustion at 76% (2026-05-05)
+Last session: 2026-05-05T15:00:41Z
+Stopped at: Completed plan 02-01 (2026-05-05)
 Resume file: None
