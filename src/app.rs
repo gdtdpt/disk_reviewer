@@ -5,7 +5,8 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::platform::drives::{self, DriveInfo};
-use crate::scanner::{scan_directory, AggThresholds, DirNode, ScanEvent};
+use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
+use crate::treemap;
 
 pub struct DiskReviewerApp {
     pub drives: Vec<DriveInfo>,
@@ -14,6 +15,10 @@ pub struct DiskReviewerApp {
     event_receiver: Option<Receiver<ScanEvent>>,
     pub status_message: String,
     cancel_token: Option<Arc<AtomicBool>>,
+    // Phase 2: Treemap 状态
+    pub nav_stack: Vec<usize>,
+    pub selected_index: Option<usize>,
+    pub treemap_nodes: Vec<crate::treemap::TreemapNode>,
 }
 
 impl DiskReviewerApp {
@@ -26,6 +31,9 @@ impl DiskReviewerApp {
             event_receiver: None,
             status_message: "就绪".to_string(),
             cancel_token: None,
+            nav_stack: Vec::new(),
+            selected_index: None,
+            treemap_nodes: Vec::new(),
         }
     }
 
@@ -81,7 +89,10 @@ impl DiskReviewerApp {
     }
 
     fn consume_events(&mut self, ctx: &egui::Context) {
-        if let Some(receiver) = &self.event_receiver {
+        // Take the receiver out temporarily to avoid borrow conflicts
+        let mut receiver_match = false;
+        let mut needs_rebuild = false;
+        if let Some(receiver) = self.event_receiver.take() {
             let mut count = 0;
             loop {
                 match receiver.try_recv() {
@@ -89,6 +100,8 @@ impl DiskReviewerApp {
                         match &event {
                             ScanEvent::Complete { root, duration, total_files, access_denied_count } => {
                                 self.scan_result = Some(Arc::new(root.clone()));
+                                self.nav_stack = Vec::new(); // 空 = 根层级
+                                needs_rebuild = true;
                                 self.status_message = format!(
                                     "扫描完成: {} 个文件, 耗时 {:.1}s, {} 个目录无权限",
                                     total_files,
@@ -109,14 +122,40 @@ impl DiskReviewerApp {
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
-                        self.event_receiver = None;
+                        receiver_match = true; // signal that receiver is done
                         break;
                     }
                 }
             }
+            if !receiver_match {
+                self.event_receiver = Some(receiver);
+            }
             if count > 0 {
                 ctx.request_repaint();
             }
+        }
+        if needs_rebuild {
+            self.rebuild_treemap();
+        }
+    }
+
+    fn current_dir(&self) -> Option<&DirNode> {
+        let root = self.scan_result.as_ref()?;
+        let mut current = root.as_ref();
+        for &idx in &self.nav_stack {
+            current = current.children.get(idx).and_then(|e| match e {
+                Entry::Dir(d) => Some(d),
+                _ => None,
+            })?;
+        }
+        Some(current)
+    }
+
+    fn rebuild_treemap(&mut self) {
+        if let Some(dir) = self.current_dir() {
+            // plan 02-02 实现 layout_treemap 后替换
+            // self.treemap_nodes = crate::treemap::layout_treemap(dir);
+            let _ = dir; // suppress unused warning until layout_treemap exists
         }
     }
 }
