@@ -72,14 +72,12 @@ fn main() -> eframe::Result<()> {
 
             cc.egui_ctx.set_fonts(fonts);
 
-            // 4. 根据 DPI 设置全局字体缩放
-            let dpi = cc.egui_ctx.native_pixels_per_point().unwrap_or(1.0);
-            let base_size = 14.0 * dpi;
+            // 4. 设置全局字体样式（等宽，egui 会自动处理 DPI 缩放）
             let mut style = (*cc.egui_ctx.style()).clone();
-            style.text_styles.insert(egui::TextStyle::Body, egui::FontId::monospace(base_size));
-            style.text_styles.insert(egui::TextStyle::Button, egui::FontId::monospace(base_size));
-            style.text_styles.insert(egui::TextStyle::Heading, egui::FontId::monospace(base_size * 1.3));
-            style.text_styles.insert(egui::TextStyle::Small, egui::FontId::monospace(base_size * 0.85));
+            style.text_styles.insert(egui::TextStyle::Body, egui::FontId::monospace(12.0));
+            style.text_styles.insert(egui::TextStyle::Button, egui::FontId::monospace(12.0));
+            style.text_styles.insert(egui::TextStyle::Heading, egui::FontId::monospace(15.0));
+            style.text_styles.insert(egui::TextStyle::Small, egui::FontId::monospace(10.0));
             cc.egui_ctx.set_style(style);
             Ok(Box::new(DiskReviewerApp::new(cc)))
         }),

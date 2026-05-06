@@ -4,7 +4,7 @@ use crate::treemap::color::FileCategory;
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
 const SELECTED_STROKE_WIDTH: f32 = 2.0;
-const BASE_FONT_SIZE: f32 = 14.0;
+const BASE_FONT_SIZE: f32 = 12.0;
 
 /// 绘制 Treemap，返回用户交互动作
 ///
