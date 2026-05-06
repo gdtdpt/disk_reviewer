@@ -66,10 +66,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — SQLite 快照存储（schema 设计 + 读写）
-- [ ] 03-02-PLAN.md — 快照序列化/反序列化 + 快照管理 UI
-- [ ] 03-03-PLAN.md — 差异检测算法（树结构对比）
-- [ ] 03-04-PLAN.md — 差异高亮渲染 + 快照对比视图
+- [x] 03-01-PLAN.md — SQLite 快照存储（schema 设计 + 读写）[Wave 1, TDD]
+- [x] 03-02-PLAN.md — 快照序列化/反序列化 + 快照管理 UI [Wave 2, blocked on 03-01]
+- [x] 03-03-PLAN.md — 差异检测算法（树结构对比）[Wave 2, blocked on 03-01]
+- [x] 03-04-PLAN.md — 差异高亮渲染 + 快照对比视图 [Wave 3, blocked on 03-02 + 03-03]
 
 ## Progress
 
