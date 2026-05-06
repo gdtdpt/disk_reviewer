@@ -22,6 +22,12 @@ pub fn info_panel_ui(
     ui.heading("详情");
     ui.separator();
 
+    // 固定详情区域高度：按最多行数（目录 6 行）分配，避免选中不同类型时列表跳动
+    let line_height = 18.0;
+    let max_detail_lines = 6;
+    let detail_height = line_height * max_detail_lines as f32;
+    ui.allocate_exact_size(egui::vec2(ui.available_width(), detail_height), egui::Sense::hover());
+
     if let Some(node) = selected {
         ui.label(egui::RichText::new(format!("名称: {}", node.label)).size(12.0));
         ui.label(egui::RichText::new(format!("大小: {}", format_size(node.size))).size(12.0));
