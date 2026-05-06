@@ -79,6 +79,7 @@ pub fn comparison_window_ui(
                                     &left_nodes,
                                     comparison.left_selected,
                                     canvas_rect,
+                                    None,
                                 ) {
                                     match action {
                                         TreemapAction::Click(idx) => {
@@ -212,12 +213,12 @@ pub fn comparison_window_ui(
                                     })
                                     .collect();
 
-                                if let Some(action) = crate::treemap::renderer::paint_treemap_with_diff(
+                                if let Some(action) = paint_treemap(
                                     ui,
                                     &right_nodes,
                                     comparison.right_selected,
                                     canvas_rect,
-                                    &diff_map,
+                                    Some(&diff_map),
                                 ) {
                                     match action {
                                         TreemapAction::Click(idx) => {

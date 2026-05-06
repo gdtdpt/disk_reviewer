@@ -1,6 +1,6 @@
 use egui::Ui;
 use crate::treemap::TreemapNode;
-use crate::treemap::renderer::format_size;
+use crate::scanner::types::format_size;
 use crate::scanner::DirNode;
 
 /// 文件列表用户操作

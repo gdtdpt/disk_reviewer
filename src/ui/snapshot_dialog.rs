@@ -1,5 +1,6 @@
 use egui::{Color32, RichText, Ui, Window};
 
+use crate::scanner::types::format_size;
 use crate::snapshot::SnapshotMeta;
 
 /// User actions returned from the snapshot dialog UI.
@@ -39,17 +40,6 @@ impl Default for SnapshotDialog {
     }
 }
 
-/// Format size in human-readable form.
-fn format_size(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut size = bytes as f64;
-    let mut i = 0;
-    while size >= 1024.0 && i < UNITS.len() - 1 {
-        size /= 1024.0;
-        i += 1;
-    }
-    format!("{:.1} {}", size, UNITS[i])
-}
 
 /// Render the snapshot management dialog.
 ///
@@ -175,8 +165,8 @@ pub fn snapshot_dialog_ui(
 
                             // Metadata line: time | size | root_path
                             let meta_text = format!(
-                                "{}  |  {}  |  {}",
-                                snap.created_at, format_size(snap.total_size), snap.root_path
+                                "{}  |  {}  |  {} 个文件  |  {}",
+                                snap.created_at, format_size(snap.total_size), snap.total_files, snap.root_path
                             );
                             let meta_galley = painter.layout_no_wrap(
                                 meta_text,

@@ -4,7 +4,6 @@ mod diff;
 #[cfg(feature = "snapshot")]
 mod storage;
 
-pub use serialize::{deserialize_tree, serialize_tree};
-pub use diff::{ChangeType, DiffNode, diff_level, diff_trees_recursive, entry_name};
+pub use diff::{ChangeType, DiffNode, diff_level};
 #[cfg(feature = "snapshot")]
 pub use storage::{SnapshotMeta, SnapshotStorage};

@@ -45,6 +45,35 @@ impl Entry {
             _ => 0,
         }
     }
+
+    /// Extract the display name for matching and rendering.
+    pub fn name(&self) -> String {
+        match self {
+            Entry::File(f) => f.name.clone(),
+            Entry::Dir(d) => d.name.clone(),
+            Entry::Others(o) => o.name.clone(),
+            Entry::Symlink(p) => p.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string(),
+            Entry::AccessDenied { path } => path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string(),
+        }
+    }
+}
+
+/// Format size in human-readable form (e.g., "1.5 MB").
+pub fn format_size(bytes: u64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
+    let mut size = bytes as f64;
+    let mut i = 0;
+    while size >= 1024.0 && i < UNITS.len() - 1 {
+        size /= 1024.0;
+        i += 1;
+    }
+    format!("{:.1} {}", size, UNITS[i])
 }
 
 /// Others 聚合阈值配置（SCAN-05）

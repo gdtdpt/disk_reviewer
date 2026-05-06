@@ -194,17 +194,7 @@ fn squarify(sizes: &[f64], x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<NRect> {
 }
 
 fn entry_name(entry: &Entry) -> String {
-    match entry {
-        Entry::File(f) => f.name.clone(),
-        Entry::Dir(d) => d.name.clone(),
-        Entry::Others(o) => o.name.clone(),
-        Entry::Symlink(p) => p.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("?").to_string(),
-        Entry::AccessDenied { path } => path.file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("?").to_string(),
-    }
+    entry.name()
 }
 
 #[cfg(test)]

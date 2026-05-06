@@ -1,6 +1,7 @@
 use egui::{Color32, CornerRadius, FontId, Mesh, Pos2, Sense, Stroke, StrokeKind, Ui, emath, Vec2};
 use crate::treemap::{TreemapAction, TreemapNode};
 use crate::treemap::color::FileCategory;
+use crate::scanner::types::format_size;
 use crate::snapshot::{ChangeType, DiffNode};
 
 const SELECTED_STROKE_WIDTH: f32 = 2.0;
@@ -32,6 +33,7 @@ pub fn paint_treemap(
     nodes: &[TreemapNode],
     selected_index: Option<usize>,
     canvas_rect: emath::Rect,
+    diff_map: Option<&std::collections::HashMap<usize, &DiffNode>>,
 ) -> Option<TreemapAction> {
     // 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
     let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
@@ -91,6 +93,13 @@ pub fn paint_treemap(
             );
         }
 
+        // Diff overlay (when diff data is provided)
+        if let Some(dm) = diff_map {
+            if let Some(diff_node) = dm.get(&node.entry_index) {
+                paint_diff_overlay(&painter, rect, diff_node.change);
+            }
+        }
+
         let area = rect.width() * rect.height();
         let (font_size, show_detail) = font_for_area(area);
         if font_size > 0.0 {
@@ -139,6 +148,9 @@ pub fn paint_treemap(
         for node in nodes.iter().rev() {
             if node.rect.translate(offset).contains(pos) {
                 let size_str = format_size(node.size);
+                let diff_info = diff_map.and_then(|dm| {
+                    dm.get(&node.entry_index).map(|dn| (dn.change, dn.old_size, dn.new_size))
+                });
                 response.on_hover_ui_at_pointer(|ui| {
                     ui.set_min_width(200.0);
                     ui.label(egui::RichText::new(&node.label).size(14.0).strong());
@@ -146,6 +158,23 @@ pub fn paint_treemap(
                     ui.label(egui::RichText::new(format!("{:.1}%", node.percentage)).size(13.0));
                     let type_str = if node.is_dir { "目录" } else { "文件" };
                     ui.label(egui::RichText::new(type_str).size(12.0).color(Color32::GRAY));
+                    if let Some((change, old_size, new_size)) = diff_info {
+                        if change != ChangeType::Unchanged {
+                            let delta_text = match change {
+                                ChangeType::Added => "(新增)".to_string(),
+                                ChangeType::Removed => "(已删除)".to_string(),
+                                ChangeType::Grown | ChangeType::Shrunk => {
+                                    let old = old_size.unwrap_or(0);
+                                    let new = new_size;
+                                    let diff = if new > old { new - old } else { old - new };
+                                    let sign = if new > old { "+" } else { "-" };
+                                    format!("{}{} (之前: {})", sign, format_size(diff), format_size(old))
+                                }
+                                _ => String::new(),
+                            };
+                            ui.label(egui::RichText::new(delta_text).size(12.0).color(Color32::YELLOW));
+                        }
+                    }
                 });
                 break;
             }
@@ -189,160 +218,3 @@ pub fn paint_diff_overlay(
     );
 }
 
-/// Variant of paint_treemap that accepts diff data for the right-side panel.
-/// Shows color overlays and enhanced tooltips with change details.
-pub fn paint_treemap_with_diff(
-    ui: &mut Ui,
-    nodes: &[TreemapNode],
-    selected_index: Option<usize>,
-    canvas_rect: emath::Rect,
-    diff_map: &std::collections::HashMap<usize, &DiffNode>,
-) -> Option<TreemapAction> {
-    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
-    let response_rect = response.rect;
-
-    let offset = response_rect.min - canvas_rect.min;
-
-    let pos_to_index = |pos: emath::Pos2| -> Option<usize> {
-        for (i, node) in nodes.iter().enumerate().rev() {
-            if node.rect.translate(offset).contains(pos) {
-                return Some(i);
-            }
-        }
-        None
-    };
-
-    for (i, node) in nodes.iter().enumerate() {
-        let rect = node.rect.translate(offset);
-        if !response_rect.intersects(rect) { continue; }
-
-        // Gradient fill (same as paint_treemap)
-        let base_color = node.color;
-        let end_color = node.category.gradient_end();
-        let gradient_start = rect.top() + rect.height() * 0.6;
-        let mut mesh = Mesh::default();
-        mesh.colored_vertex(Pos2::new(rect.left(), rect.top()), base_color);
-        mesh.colored_vertex(Pos2::new(rect.right(), rect.top()), base_color);
-        mesh.colored_vertex(Pos2::new(rect.right(), gradient_start), base_color);
-        mesh.colored_vertex(Pos2::new(rect.left(), gradient_start), base_color);
-        mesh.colored_vertex(Pos2::new(rect.right(), rect.bottom()), end_color);
-        mesh.colored_vertex(Pos2::new(rect.left(), rect.bottom()), end_color);
-        mesh.add_triangle(0, 1, 2);
-        mesh.add_triangle(0, 2, 3);
-        mesh.add_triangle(3, 2, 4);
-        mesh.add_triangle(3, 4, 5);
-        painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
-
-        painter.rect_stroke(
-            rect,
-            CornerRadius::same(1),
-            Stroke::new(0.5, Color32::from_rgba_premultiplied(0, 0, 0, 60)),
-            StrokeKind::Middle,
-        );
-
-        if selected_index == Some(i) {
-            painter.rect_stroke(
-                rect.shrink(1.0),
-                CornerRadius::same(1),
-                Stroke::new(SELECTED_STROKE_WIDTH, Color32::from_rgba_premultiplied(255, 200, 50, 220)),
-                StrokeKind::Middle,
-            );
-        }
-
-        // Diff overlay: color + icon
-        if let Some(diff_node) = diff_map.get(&node.entry_index) {
-            paint_diff_overlay(&painter, rect, diff_node.change);
-        }
-
-        let area = rect.width() * rect.height();
-        let (font_size, show_detail) = font_for_area(area);
-        if font_size > 0.0 {
-            let text_color = if selected_index == Some(i) { Color32::BLACK } else { Color32::WHITE };
-            let label_font = FontId::proportional(font_size);
-            let label_text = if show_detail {
-                format!("{}  {:.1}%", node.label, node.percentage)
-            } else {
-                node.label.clone()
-            };
-            painter.text(
-                rect.left_top() + emath::vec2(3.0, 3.0),
-                egui::Align2::LEFT_TOP,
-                label_text,
-                label_font,
-                text_color,
-            );
-        }
-    }
-
-    // Interaction detection (same as paint_treemap)
-    let pointer = ui.input(|i| i.pointer.clone());
-    let interact_pos = pointer.interact_pos();
-
-    let dbl = pointer.button_double_clicked(egui::PointerButton::Primary);
-    let clk = pointer.button_clicked(egui::PointerButton::Primary);
-    if dbl {
-        if let Some(pos) = interact_pos {
-            if let Some(idx) = pos_to_index(pos) {
-                return Some(TreemapAction::DoubleClick(idx));
-            }
-        }
-    } else if clk {
-        if let Some(pos) = interact_pos {
-            if let Some(idx) = pos_to_index(pos) {
-                return Some(TreemapAction::Click(idx));
-            }
-            return Some(TreemapAction::Click(usize::MAX));
-        }
-    }
-
-    // Hover tooltip with diff info
-    if let Some(pos) = response.hover_pos() {
-        for node in nodes.iter().rev() {
-            if node.rect.translate(offset).contains(pos) {
-                let size_str = format_size(node.size);
-                response.on_hover_ui_at_pointer(|ui| {
-                    ui.set_min_width(200.0);
-                    ui.label(egui::RichText::new(&node.label).size(14.0).strong());
-                    ui.label(egui::RichText::new(size_str).size(13.0));
-                    ui.label(egui::RichText::new(format!("{:.1}%", node.percentage)).size(13.0));
-                    let type_str = if node.is_dir { "目录" } else { "文件" };
-                    ui.label(egui::RichText::new(type_str).size(12.0).color(Color32::GRAY));
-
-                    // Diff tooltip enhancement
-                    if let Some(diff_node) = diff_map.get(&node.entry_index) {
-                        if diff_node.change != ChangeType::Unchanged {
-                            let delta_text = match diff_node.change {
-                                ChangeType::Added => "(新增)".to_string(),
-                                ChangeType::Removed => "(已删除)".to_string(),
-                                ChangeType::Grown | ChangeType::Shrunk => {
-                                    let old = diff_node.old_size.unwrap_or(0);
-                                    let new = diff_node.new_size;
-                                    let diff = if new > old { new - old } else { old - new };
-                                    let sign = if new > old { "+" } else { "-" };
-                                    format!("{}{} (之前: {})",
-                                        sign, format_size(diff), format_size(old))
-                                }
-                                _ => String::new(),
-                            };
-                            ui.label(egui::RichText::new(delta_text).size(12.0).color(Color32::YELLOW));
-                        }
-                    }
-                });
-                break;
-            }
-        }
-    }
-
-    None
-}
-
-pub fn format_size(bytes: u64) -> String {
-    const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
-    let mut size = bytes as f64;
-    let mut i = 0;
-    while size >= 1024.0 && i < UNITS.len() - 1 {
-        size /= 1024.0;
-        i += 1;
-    }
-    format!("{:.1} {}", size, UNITS[i])
-}

@@ -23,23 +23,10 @@ pub struct DiffNode {
     pub child_index: Option<usize>,
 }
 
-/// Extract the name for matching (D-19: match by name within same level)
+/// Extract the name for matching (D-19: match by name within same level).
+/// Delegates to `Entry::name()` to avoid duplication.
 pub fn entry_name(entry: &Entry) -> String {
-    match entry {
-        Entry::File(f) => f.name.clone(),
-        Entry::Dir(d) => d.name.clone(),
-        Entry::Others(o) => o.name.clone(),
-        Entry::Symlink(p) => p
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_string(),
-        Entry::AccessDenied { path } => path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_string(),
-    }
+    entry.name()
 }
 
 /// Diff two DirNode trees at one level.

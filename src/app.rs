@@ -34,8 +34,6 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_open: bool,
     #[cfg(feature = "snapshot")]
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
-    #[cfg(feature = "snapshot")]
-    pub snapshot_status: String,
     // Phase 3 Plan 04: Comparison window state
     #[cfg(feature = "snapshot")]
     pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
@@ -44,12 +42,33 @@ pub struct DiskReviewerApp {
 impl DiskReviewerApp {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let drives = drives::enumerate_drives();
+
+        #[cfg(feature = "snapshot")]
+        let (snapshot_manager, status_message) = {
+            let db_path = dirs::data_local_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("disk_reviewer")
+                .join("snapshots.db");
+            if let Some(parent) = db_path.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            match SnapshotStorage::new(&db_path) {
+                Ok(storage) => (Some(storage), "就绪".to_string()),
+                Err(e) => {
+                    (None, format!("快照数据库初始化失败: {}", e))
+                }
+            }
+        };
+
+        #[cfg(not(feature = "snapshot"))]
+        let status_message = "就绪".to_string();
+
         Self {
             drives,
             scan_result: None,
             scan_progress: None,
             event_receiver: None,
-            status_message: "就绪".to_string(),
+            status_message,
             cancel_token: None,
             nav_stack: Vec::new(),
             selected_index: None,
@@ -58,28 +77,11 @@ impl DiskReviewerApp {
             last_canvas_rect: None,
             pending_resize: None,
             #[cfg(feature = "snapshot")]
-            snapshot_manager: {
-                let db_path = dirs::data_local_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("disk_reviewer")
-                    .join("snapshots.db");
-                if let Some(parent) = db_path.parent() {
-                    std::fs::create_dir_all(parent).ok();
-                }
-                match SnapshotStorage::new(&db_path) {
-                    Ok(storage) => Some(storage),
-                    Err(e) => {
-                        eprintln!("快照数据库初始化失败: {}", e);
-                        None
-                    }
-                }
-            },
+            snapshot_manager,
             #[cfg(feature = "snapshot")]
             snapshot_dialog_open: false,
             #[cfg(feature = "snapshot")]
             snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
-            #[cfg(feature = "snapshot")]
-            snapshot_status: String::new(),
             #[cfg(feature = "snapshot")]
             comparison_state: None,
         }
@@ -463,7 +465,7 @@ impl eframe::App for DiskReviewerApp {
 
                 // paint_treemap 返回双击下钻的目录索引或单击选中的索引
                 if let Some(action) = paint_treemap(
-                    ui, &self.treemap_nodes, self.selected_index, canvas_rect,
+                    ui, &self.treemap_nodes, self.selected_index, canvas_rect, None,
                 ) {
                     match action {
                         TreemapAction::DoubleClick(child_index) => {
