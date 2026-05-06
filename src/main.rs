@@ -18,14 +18,35 @@ fn main() -> eframe::Result<()> {
         "Disk Reviewer",
         options,
         Box::new(|cc| {
-            // 配置字体：等宽字体 Consolas + 中文 fallback（微软雅黑）
+            // 配置字体：加载等宽字体 + 中文 fallback
             let mut fonts = egui::FontDefinitions::default();
 
-            // 1. 加载中文字体作为 fallback（用于中文字符渲染）
+            // 1. 加载等宽字体（consola.ttf），作为 Monospace 族首选
+            let mono_fonts = [
+                (r"C:\Windows\Fonts\consola.ttf", "consola"),
+                (r"C:\Windows\Fonts\CascadiaMono.ttf", "cascadia_mono"),
+            ];
+            let mut mono_name = None;
+            for (path_str, name) in &mono_fonts {
+                let font_path = std::path::Path::new(path_str);
+                if font_path.exists() {
+                    if let Ok(font_data) = std::fs::read(font_path) {
+                        fonts.font_data.insert(
+                            name.to_string(),
+                            std::sync::Arc::new(egui::FontData::from_owned(font_data)),
+                        );
+                        mono_name = Some(name.to_string());
+                        break;
+                    }
+                }
+            }
+
+            // 2. 加载中文字体作为 fallback（用于中文字符渲染）
             let chinese_fonts = [
                 (r"C:\Windows\Fonts\msyh.ttc", "msyh"),
                 (r"C:\Windows\Fonts\simhei.ttf", "simhei"),
             ];
+            let mut chinese_name = None;
             for (path_str, name) in &chinese_fonts {
                 let font_path = std::path::Path::new(path_str);
                 if font_path.exists() {
@@ -34,26 +55,19 @@ fn main() -> eframe::Result<()> {
                             name.to_string(),
                             std::sync::Arc::new(egui::FontData::from_owned(font_data)),
                         );
+                        chinese_name = Some(name.to_string());
                         break;
                     }
                 }
             }
 
-            // 2. 设置等宽字体优先（Consolas），中文字体作为 fallback
-            //    egui 会在等宽字体中找不到中文字符时自动回退到中文字体
-            fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().insert(0, "Consolas".to_string());
-            if fonts.font_data.contains_key("msyh") {
-                fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push("msyh".to_string());
-            } else if fonts.font_data.contains_key("simhei") {
-                fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push("simhei".to_string());
+            // 3. 设置字体族：等宽字体优先，中文字体作为 fallback
+            if let Some(mono) = &mono_name {
+                fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().insert(0, mono.clone());
             }
-
-            // 3. Proportional 也使用等宽 + 中文 fallback
-            fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().insert(0, "Consolas".to_string());
-            if fonts.font_data.contains_key("msyh") {
-                fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().push("msyh".to_string());
-            } else if fonts.font_data.contains_key("simhei") {
-                fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().push("simhei".to_string());
+            if let Some(ch) = &chinese_name {
+                fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push(ch.clone());
+                fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().insert(0, ch.clone());
             }
 
             cc.egui_ctx.set_fonts(fonts);
