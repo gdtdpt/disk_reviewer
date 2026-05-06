@@ -22,6 +22,7 @@ pub struct DiskReviewerApp {
     pub selected_index: Option<usize>,
     pub treemap_nodes: Vec<crate::treemap::TreemapNode>,
     needs_rebuild: bool,
+    last_canvas_rect: Option<Rect>,
 }
 
 impl DiskReviewerApp {
@@ -38,6 +39,7 @@ impl DiskReviewerApp {
             selected_index: None,
             treemap_nodes: Vec::new(),
             needs_rebuild: false,
+            last_canvas_rect: None,
         }
     }
 
@@ -240,44 +242,44 @@ impl eframe::App for DiskReviewerApp {
             ui.separator();
             ui.label(&self.status_message);
 
-            // Treemap 渲染
+            // 颜色图例（始终显示，单行横向排列）
+            ui.horizontal(|ui| {
+                use crate::treemap::color::FileCategory;
+                for cat in [
+                    FileCategory::Document,
+                    FileCategory::Image,
+                    FileCategory::Video,
+                    FileCategory::Audio,
+                    FileCategory::Archive,
+                    FileCategory::Code,
+                    FileCategory::Executable,
+                    FileCategory::System,
+                    FileCategory::Temp,
+                    FileCategory::Other,
+                ] {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
+                    ui.label(cat.label());
+                }
+            });
+            ui.separator();
+
+            // Treemap 画布
             if !self.treemap_nodes.is_empty() || self.scan_result.is_some() {
-                ui.separator();
-
-                // 颜色图例（单行横向排列）
-                ui.horizontal(|ui| {
-                    use crate::treemap::color::FileCategory;
-                    for cat in [
-                        FileCategory::Document,
-                        FileCategory::Image,
-                        FileCategory::Video,
-                        FileCategory::Audio,
-                        FileCategory::Archive,
-                        FileCategory::Code,
-                        FileCategory::Executable,
-                        FileCategory::System,
-                        FileCategory::Temp,
-                        FileCategory::Other,
-                    ] {
-                        let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
-                        ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
-                        ui.label(cat.label());
-                    }
-                });
-                ui.separator();
-
                 // 计算画布尺寸
                 let canvas_rect = Rect::from_min_size(
                     pos2(0.0, 0.0),
                     vec2(ui.available_width(), ui.available_height().max(200.0)),
                 );
 
-                // 仅在需要时重建布局（扫描完成/下钻/导航），避免每帧重算
-                if self.needs_rebuild {
+                // 当画布尺寸变化或需要重建时，重新计算布局
+                let canvas_changed = self.last_canvas_rect != Some(canvas_rect);
+                if self.needs_rebuild || canvas_changed {
                     if let Some(_dir) = self.current_dir() {
                         self.rebuild_treemap(canvas_rect);
                     }
                     self.needs_rebuild = false;
+                    self.last_canvas_rect = Some(canvas_rect);
                 }
 
                 // paint_treemap 返回双击下钻的目录索引或单击选中的索引

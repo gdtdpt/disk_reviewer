@@ -18,9 +18,9 @@ pub fn paint_treemap(
     selected_index: Option<usize>,
     canvas_rect: emath::Rect,
 ) -> Option<TreemapAction> {
-    // 使用 canvas_rect 分配 painter，确保响应区域与绘制区域一致
-    // 用 Sense::click() 然后手动检测双击，因为 click_and_drag 不触发 double_clicked
-    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click());
+    // 使用 canvas_rect 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
+    // 手动通过 input_state 检测单击和双击
+    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
     let response_rect = response.rect;
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
@@ -78,17 +78,22 @@ pub fn paint_treemap(
         }
     }
 
-    // 处理交互
-    if response.double_clicked() {
+    // 处理交互：手动检测单击和双击
+    // 不能用 Sense::click()，因为它会消费第一次点击导致双击检测失败
+    let pos = response.hover_pos();
+    let double_clicked = ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
+    let clicked = ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary));
+
+    if double_clicked {
         // 双击 → 下钻
-        if let Some(pos) = response.interact_pointer_pos() {
+        if let Some(pos) = pos {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
-    } else if response.clicked() {
+    } else if clicked {
         // 单击 → 选中 或 取消选中
-        if let Some(pos) = response.interact_pointer_pos() {
+        if let Some(pos) = pos {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::Click(idx));
             }
