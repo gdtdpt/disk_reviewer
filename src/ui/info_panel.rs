@@ -11,6 +11,11 @@ pub enum FileListAction {
     Drill(usize),
 }
 
+/// 详情区域固定高度（防止文件列表跳动）
+const DETAIL_ROW_H: f32 = 18.0;
+const DETAIL_MAX_ROWS: usize = 8; // 最多显示行数（含 heading + separator）
+const DETAIL_RESERVED_H: f32 = DETAIL_ROW_H * DETAIL_MAX_ROWS as f32;
+
 pub fn info_panel_ui(
     ui: &mut Ui,
     selected: Option<&TreemapNode>,
@@ -22,41 +27,55 @@ pub fn info_panel_ui(
     ui.heading("详情");
     ui.separator();
 
-    // 固定详情区域高度（heading + separator + 最多6行信息），防止列表跳动
-    // heading ~28px + separator ~8px + 6行×18px = ~144px，取整 150px
-    let reserved_height = 150.0;
-    let content_height = ui.available_height() - reserved_height;
-    if content_height > 0.0 {
-        // 用不可见的占位区域固定空间
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), reserved_height), egui::Sense::hover());
-    }
+    // 在固定高度区域内绘制详情内容，避免列表跳动
+    let (rect, _resp) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), DETAIL_RESERVED_H),
+        egui::Sense::hover(),
+    );
+    let painter = ui.painter().clone();
+    let mut y = rect.min.y;
+    let x = rect.min.x + 4.0;
+    let line_h = DETAIL_ROW_H;
+
+    let mut draw_line = |text: &str, color: egui::Color32| {
+        let galley = painter.layout_no_wrap(
+            text.to_string(),
+            egui::FontId::proportional(12.0),
+            color,
+        );
+        painter.galley(egui::pos2(x, y), galley, color);
+        y += line_h;
+    };
 
     if let Some(node) = selected {
-        ui.label(egui::RichText::new(format!("名称: {}", node.label)).size(12.0));
-        ui.label(egui::RichText::new(format!("大小: {}", format_size(node.size))).size(12.0));
-        ui.label(egui::RichText::new(format!("占比: {:.1}%", node.percentage)).size(12.0));
-        ui.label(egui::RichText::new(if node.is_dir { "类型: 目录" } else { "类型: 文件" }).size(12.0));
+        draw_line(&format!("名称: {}", node.label), ui.style().visuals.text_color());
+        draw_line(&format!("大小: {}", format_size(node.size)), ui.style().visuals.text_color());
+        draw_line(&format!("占比: {:.1}%", node.percentage), ui.style().visuals.text_color());
+        draw_line(if node.is_dir { "类型: 目录" } else { "类型: 文件" }, ui.style().visuals.text_color());
         if node.is_dir {
             if let Some(dir) = current_dir {
                 if let Some(crate::scanner::Entry::Dir(d)) = dir.children.get(node.entry_index) {
-                    ui.label(egui::RichText::new(format!("文件数: {}", d.file_count)).size(12.0));
-                    ui.label(egui::RichText::new(format!(
-                        "子目录: {}",
-                        d.children
-                            .iter()
-                            .filter(|c| matches!(c, crate::scanner::Entry::Dir(_)))
-                            .count()
-                    )).size(12.0));
+                    draw_line(&format!("文件数: {}", d.file_count), ui.style().visuals.text_color());
+                    draw_line(
+                        &format!(
+                            "子目录: {}",
+                            d.children
+                                .iter()
+                                .filter(|c| matches!(c, crate::scanner::Entry::Dir(_)))
+                                .count()
+                        ),
+                        ui.style().visuals.text_color(),
+                    );
                 }
             }
         }
     } else if let Some(dir) = current_dir {
-        ui.label(egui::RichText::new(format!("当前: {}", dir.name)).size(12.0));
-        ui.label(egui::RichText::new(format!("总大小: {}", format_size(dir.total_size))).size(12.0));
-        ui.label(egui::RichText::new(format!("文件数: {}", dir.file_count)).size(12.0));
-        ui.label(egui::RichText::new(format!("子条目: {}", dir.children.len())).size(12.0));
+        draw_line(&format!("当前: {}", dir.name), ui.style().visuals.text_color());
+        draw_line(&format!("总大小: {}", format_size(dir.total_size)), ui.style().visuals.text_color());
+        draw_line(&format!("文件数: {}", dir.file_count), ui.style().visuals.text_color());
+        draw_line(&format!("子条目: {}", dir.children.len()), ui.style().visuals.text_color());
     } else {
-        ui.label(egui::RichText::new("点击色块查看详情").size(12.0));
+        draw_line("点击色块查看详情", ui.style().visuals.text_color());
     }
 
     // 文件列表
