@@ -179,26 +179,34 @@ impl SnapshotStorage {
     }
 }
 
-/// Recursively insert all DirNode children into snapshot_nodes.
+/// Insert all DirNode children into snapshot_nodes using an explicit stack.
+///
+/// Uses an iterative approach instead of recursion to avoid stack overflow
+/// on deeply nested directory trees (Windows paths can be up to 32,767 chars).
 fn insert_nodes_recursive(
     tx: &rusqlite::Transaction,
     snapshot_id: i64,
-    node: &DirNode,
+    root: &DirNode,
     parent_path: Option<&str>,
 ) -> Result<(), rusqlite::Error> {
-    let path_str = node.path.to_string_lossy().to_string();
-    let node_json = serde_json::to_string(node)
-        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    // Stack of (node, parent_path_string). We store owned Strings for parent_path
+    // to avoid lifetime issues with references to loop-local data.
+    let mut stack: Vec<(&DirNode, Option<String>)> = vec![(root, parent_path.map(String::from))];
+    while let Some((node, parent)) = stack.pop() {
+        let path_str = node.path.to_string_lossy().to_string();
+        let node_json = serde_json::to_string(node)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 
-    tx.execute(
-        "INSERT INTO snapshot_nodes (snapshot_id, path, parent_path, node_json)
-         VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![snapshot_id, &path_str, parent_path, &node_json],
-    )?;
+        tx.execute(
+            "INSERT INTO snapshot_nodes (snapshot_id, path, parent_path, node_json)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![snapshot_id, &path_str, parent.as_deref(), &node_json],
+        )?;
 
-    for child in &node.children {
-        if let Entry::Dir(dir) = child {
-            insert_nodes_recursive(tx, snapshot_id, dir, Some(&path_str))?;
+        for child in &node.children {
+            if let Entry::Dir(dir) = child {
+                stack.push((dir, Some(path_str.clone())));
+            }
         }
     }
     Ok(())
