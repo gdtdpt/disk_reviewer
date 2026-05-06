@@ -74,111 +74,119 @@ struct Row {
     dice: bool,
 }
 
-/// D3-style squarified treemap algorithm.
+/// D3-style squarified treemap algorithm (recursive).
 ///
 /// Based on Bruls et al. (2000) "Squarified Treemaps", matching D3's implementation.
-/// Key insight: worst ratio uses `max(dy/dx, dx/dy) / remaining_value` as alpha,
+/// Key insight: worst ratio uses `max(dy/dx, dx/dy) / total` as alpha,
 /// and `max(maxVal/beta, beta/minVal)` as the ratio metric.
+///
+/// Improvement over standard squarify: when a row has only one element and
+/// its aspect ratio would exceed MAX_ASPECT, we force-add the next element.
+/// This prevents the "first block fills entire row / column" problem that
+/// occurs with highly skewed data (e.g. Windows dir taking 46% of C:).
+const MAX_ASPECT: f32 = 2.5;
+
 fn squarify(sizes: &[f64], x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<NRect> {
     let n = sizes.len();
     if n == 0 { return Vec::new(); }
+    if n == 1 {
+        return vec![NRect { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }];
+    }
 
     let total: f64 = sizes.iter().sum();
     if total == 0.0 { return Vec::new(); }
 
-    // Phase 1: Build rows using greedy worst-ratio algorithm
-    let mut rows: Vec<Row> = Vec::new();
-    let mut i = 0;
-    let mut cx0 = x0;
-    let mut cy0 = y0;
-    let mut cx1 = x1;
-    let mut cy1 = y1;
-    let mut remaining_value = total;
+    let dx = x1 - x0;
+    let dy = y1 - y0;
 
-    while i < n {
-        let dx = cx1 - cx0;
-        let dy = cy1 - cy0;
+    // Build one row using greedy worst-ratio algorithm
+    let mut row_sum = sizes[0];
+    let mut row_min = sizes[0];
+    let mut row_max = sizes[0];
+    let mut j = 1;
 
-        let mut row_sum = sizes[i];
-        let mut row_min = sizes[i];
-        let mut row_max = sizes[i];
-        let mut j = i + 1;
+    let alpha = (dy / dx).max(dx / dy) as f64 / total;
+    let mut beta = row_sum * row_sum * alpha;
+    let mut min_ratio = (row_max / beta).max(beta / row_min);
 
-        // alpha = max(dy/dx, dx/dy) / remaining_value
-        let alpha = (dy / dx).max(dx / dy) as f64 / remaining_value;
-        let mut beta = row_sum * row_sum * alpha;
-        let mut min_ratio = (row_max / beta).max(beta / row_min);
+    while j < n {
+        let v = sizes[j];
+        let new_sum = row_sum + v;
+        let new_min = row_min.min(v);
+        let new_max = row_max.max(v);
+        let new_beta = new_sum * new_sum * alpha;
+        let new_ratio = (new_max / new_beta).max(new_beta / new_min);
 
-        while j < n {
-            let v = sizes[j];
-            let new_sum = row_sum + v;
-            let new_min = row_min.min(v);
-            let new_max = row_max.max(v);
-            let new_beta = new_sum * new_sum * alpha;
-            let new_ratio = (new_max / new_beta).max(new_beta / new_min);
+        if new_ratio > min_ratio { break; }
 
-            if new_ratio > min_ratio {
-                break;
-            }
-
-            row_sum = new_sum;
-            row_min = new_min;
-            row_max = new_max;
-            beta = new_beta;
-            min_ratio = new_ratio;
-            j += 1;
-        }
-
-        let dice = dx < dy;
-        let row_indices: Vec<usize> = (i..j).collect();
-        rows.push(Row { indices: row_indices, sum: row_sum, dice });
-
-        // Update remaining area
-        if dice {
-            let row_h = (row_sum / remaining_value) as f32 * dy;
-            cy0 += row_h;
-        } else {
-            let row_w = (row_sum / remaining_value) as f32 * dx;
-            cx0 += row_w;
-        }
-        remaining_value -= row_sum;
-        i = j;
+        row_sum = new_sum;
+        row_min = new_min;
+        row_max = new_max;
+        beta = new_beta;
+        min_ratio = new_ratio;
+        j += 1;
     }
 
-    // Phase 2: Compute actual rectangles from rows
-    let mut result: Vec<NRect> = vec![NRect { x: 0.0, y: 0.0, w: 0.0, h: 0.0 }; n];
-    let mut cx0 = x0;
-    let mut cy0 = y0;
-    let mut cx1 = x1;
-    let mut cy1 = y1;
-    let mut rem_sum = total;
+    // Improvement: if row has only one element and aspect ratio is too high,
+    // force-add the next element to prevent "filling entire row/column"
+    if j == 1 {
+        let dice = dx < dy;
+        let row_ratio = (row_sum / total) as f32;
+        let aspect = if dice {
+            let row_h = row_ratio * dy;
+            dx.max(row_h) / dx.min(row_h).max(0.001)
+        } else {
+            let row_w = row_ratio * dx;
+            row_w.max(dy) / row_w.min(dy).max(0.001)
+        };
+        if aspect > MAX_ASPECT && n >= 2 {
+            row_sum += sizes[1];
+            j = 2;
+        }
+    }
 
-    for row in &rows {
-        let dx = cx1 - cx0;
-        let dy = cy1 - cy0;
+    let dice = dx < dy;
+    let mut result = Vec::new();
 
-        if row.dice {
-            // Horizontal split: row on top, rectangles arranged horizontally
-            let row_h = (row.sum / rem_sum) as f32 * dy;
-            let mut ox = cx0;
-            for &idx in &row.indices {
-                let w = (sizes[idx] / row.sum) as f32 * dx;
-                result[idx] = NRect { x: ox, y: cy0, w, h: row_h };
+    if dice {
+        // Horizontal split: row on top, remaining below
+        let row_h = (row_sum / total) as f32 * dy;
+        // Recursively layout elements within the row
+        if j == 1 {
+            result.push(NRect { x: x0, y: y0, w: x1 - x0, h: row_h });
+        } else if j == n {
+            // All elements in row — lay out horizontally
+            let mut ox = x0;
+            for k in 0..j {
+                let w = (sizes[k] / row_sum) as f32 * (x1 - x0);
+                result.push(NRect { x: ox, y: y0, w, h: row_h });
                 ox += w;
             }
-            cy0 += row_h;
         } else {
-            // Vertical split: row on left, rectangles arranged vertically
-            let row_w = (row.sum / rem_sum) as f32 * dx;
-            let mut oy = cy0;
-            for &idx in &row.indices {
-                let h = (sizes[idx] / row.sum) as f32 * dy;
-                result[idx] = NRect { x: cx0, y: oy, w: row_w, h };
+            result.extend(squarify(&sizes[0..j], x0, y0, x1, y0 + row_h));
+        }
+        // Recursively layout remaining elements below
+        if j < n {
+            result.extend(squarify(&sizes[j..], x0, y0 + row_h, x1, y1));
+        }
+    } else {
+        // Vertical split: row on left, remaining on right
+        let row_w = (row_sum / total) as f32 * dx;
+        if j == 1 {
+            result.push(NRect { x: x0, y: y0, w: row_w, h: y1 - y0 });
+        } else if j == n {
+            let mut oy = y0;
+            for k in 0..j {
+                let h = (sizes[k] / row_sum) as f32 * (y1 - y0);
+                result.push(NRect { x: x0, y: oy, w: row_w, h });
                 oy += h;
             }
-            cx0 += row_w;
+        } else {
+            result.extend(squarify(&sizes[0..j], x0, y0, x0 + row_w, y1));
         }
-        rem_sum -= row.sum;
+        if j < n {
+            result.extend(squarify(&sizes[j..], x0 + row_w, y0, x1, y1));
+        }
     }
 
     result
