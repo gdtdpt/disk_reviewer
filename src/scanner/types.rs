@@ -115,7 +115,142 @@ impl DirNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::{Serialize, Deserialize};
     use std::path::PathBuf;
+
+    #[test]
+    fn test_serde_roundtrip_dirnode_mixed_children() {
+        let dir = DirNode {
+            path: PathBuf::from(r"C:\test"),
+            name: "test".to_string(),
+            total_size: 350,
+            file_count: 3,
+            children: vec![
+                Entry::File(FileEntry { name: "readme.txt".to_string(), size: 100 }),
+                Entry::Dir(DirNode {
+                    path: PathBuf::from(r"C:\test\sub"),
+                    name: "sub".to_string(),
+                    total_size: 200,
+                    file_count: 2,
+                    children: vec![
+                        Entry::File(FileEntry { name: "a.exe".to_string(), size: 200 }),
+                    ],
+                    access_denied: false,
+                    dominant_cat: FileCategory::Other,
+                }),
+                Entry::Others(OthersEntry {
+                    name: "Others".to_string(),
+                    size: 50,
+                    entry_count: 5,
+                    entries: vec![
+                        Entry::File(FileEntry { name: "tiny1.tmp".to_string(), size: 25 }),
+                        Entry::File(FileEntry { name: "tiny2.tmp".to_string(), size: 25 }),
+                    ],
+                }),
+                Entry::Symlink(PathBuf::from(r"C:\test\link")),
+                Entry::AccessDenied { path: PathBuf::from(r"C:\test\secret") },
+            ],
+            access_denied: false,
+            dominant_cat: FileCategory::Other,
+        };
+
+        let json = serde_json::to_string(&dir).expect("serialize DirNode");
+        let parsed: DirNode = serde_json::from_str(&json).expect("deserialize DirNode");
+        assert_eq!(parsed.path, dir.path);
+        assert_eq!(parsed.name, dir.name);
+        assert_eq!(parsed.total_size, dir.total_size);
+        assert_eq!(parsed.children.len(), 5);
+    }
+
+    #[test]
+    fn test_serde_entry_dir_roundtrip() {
+        let entry = Entry::Dir(DirNode {
+            path: PathBuf::from(r"C:\parent\child"),
+            name: "child".to_string(),
+            total_size: 500,
+            file_count: 10,
+            children: vec![
+                Entry::File(FileEntry { name: "data.bin".to_string(), size: 500 }),
+            ],
+            access_denied: false,
+            dominant_cat: FileCategory::Other,
+        });
+        let json = serde_json::to_string(&entry).expect("serialize Entry::Dir");
+        let parsed: Entry = serde_json::from_str(&json).expect("deserialize Entry::Dir");
+        match &parsed {
+            Entry::Dir(d) => {
+                assert_eq!(d.name, "child");
+                assert_eq!(d.total_size, 500);
+                assert_eq!(d.children.len(), 1);
+            }
+            _ => panic!("Expected Entry::Dir"),
+        }
+    }
+
+    #[test]
+    fn test_serde_entry_others_roundtrip() {
+        let entry = Entry::Others(OthersEntry {
+            name: "Others".to_string(),
+            size: 1000,
+            entry_count: 50,
+            entries: vec![
+                Entry::File(FileEntry { name: "a.tmp".to_string(), size: 500 }),
+                Entry::File(FileEntry { name: "b.tmp".to_string(), size: 500 }),
+            ],
+        });
+        let json = serde_json::to_string(&entry).expect("serialize Entry::Others");
+        let parsed: Entry = serde_json::from_str(&json).expect("deserialize Entry::Others");
+        match &parsed {
+            Entry::Others(o) => {
+                assert_eq!(o.name, "Others");
+                assert_eq!(o.size, 1000);
+                assert_eq!(o.entry_count, 50);
+                assert_eq!(o.entries.len(), 2);
+            }
+            _ => panic!("Expected Entry::Others"),
+        }
+    }
+
+    #[test]
+    fn test_serde_entry_access_denied_roundtrip() {
+        let entry = Entry::AccessDenied { path: PathBuf::from(r"C:\secret") };
+        let json = serde_json::to_string(&entry).expect("serialize Entry::AccessDenied");
+        let parsed: Entry = serde_json::from_str(&json).expect("deserialize Entry::AccessDenied");
+        match &parsed {
+            Entry::AccessDenied { path } => {
+                assert_eq!(*path, PathBuf::from(r"C:\secret"));
+            }
+            _ => panic!("Expected Entry::AccessDenied"),
+        }
+    }
+
+    #[test]
+    fn test_serde_file_category_roundtrip() {
+        for cat in [
+            FileCategory::Document,
+            FileCategory::Image,
+            FileCategory::Video,
+            FileCategory::Audio,
+            FileCategory::Archive,
+            FileCategory::Code,
+            FileCategory::Executable,
+            FileCategory::System,
+            FileCategory::Temp,
+            FileCategory::Other,
+        ] {
+            let json = serde_json::to_string(&cat).expect("serialize FileCategory");
+            let parsed: FileCategory = serde_json::from_str(&json).expect("deserialize FileCategory");
+            assert_eq!(parsed, cat, "FileCategory round-trip failed");
+        }
+    }
+
+    #[test]
+    fn test_serde_symlink_roundtrip() {
+        let entry = Entry::Symlink(PathBuf::from(r"C:\Users\link_target"));
+        let json = serde_json::to_string(&entry).expect("serialize Entry::Symlink");
+        let parsed: Entry = serde_json::from_str(&json).expect("deserialize Entry::Symlink");
+        assert_eq!(parsed, entry);
+    }
 
     /// 构造一个包含 N 个子条目的 DirNode
     fn make_dir_with_entries(n: usize, base_size: u64) -> DirNode {
