@@ -25,7 +25,7 @@ pub fn paint_treemap(
     // 根据 DPI 缩放字体大小
     let dpi_scale = ui.ctx().pixels_per_point();
     let font_size = (BASE_FONT_SIZE * dpi_scale).max(10.0);
-    let label_font = FontId::monospace(font_size);
+    let label_font = FontId::proportional(font_size);
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
     let offset = response_rect.min - canvas_rect.min;
