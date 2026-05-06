@@ -43,7 +43,7 @@ Plans:
 	  3. 点击目录块进入子目录视图
 	  4. 面包屑导航显示当前路径，可点击返回任意上层
 	  5. 选中色块后在详情面板显示完整信息
-**Plans**: 5 plans
+**Plans**: 6 plans
 
 Plans:
 - [x] 02-01-PLAN.md — Treemap 模块脚手架与数据结构定义
@@ -51,6 +51,7 @@ Plans:
 - [x] 02-03-PLAN.md — Treemap egui 渲染（矩形、标签、颜色映射）
 - [x] 02-04-PLAN.md — 下钻交互 + 面包屑导航
 - [x] 02-05-PLAN.md — 详情面板 + 选中高亮 [VIS-05]
+- [x] 02-06-PLAN.md — 侧边栏文件列表（选中/下钻同步）
 
 ### Phase 3: 快照与对比
 **Goal**: 保存扫描快照，支持历史对比并高亮差异
@@ -75,5 +76,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. 扫描引擎 | v1.0 | 4/4 | Complete   | 2026-05-05 |
-| 2. Treemap 可视化 | v1.0 | 5/5 | Complete   | 2026-05-05 |
+| 2. Treemap 可视化 | v1.0 | 6/6 | Complete   | 2026-05-06 |
 | 3. 快照与对比 | v1.0 | 0/4 | Not started | - |
