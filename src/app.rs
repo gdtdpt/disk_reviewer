@@ -47,9 +47,6 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_open: bool,
     #[cfg(feature = "snapshot")]
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
-    // Phase 3 Plan 04: Comparison window state
-    #[cfg(feature = "snapshot")]
-    pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
     // Async save state
     #[cfg(feature = "snapshot")]
     pub save_snapshot_receiver: Option<Receiver<SaveSnapshotMsg>>,
@@ -100,8 +97,6 @@ impl DiskReviewerApp {
             snapshot_dialog_open: false,
             #[cfg(feature = "snapshot")]
             snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
-            #[cfg(feature = "snapshot")]
-            comparison_state: None,
             #[cfg(feature = "snapshot")]
             save_snapshot_receiver: None,
             #[cfg(feature = "snapshot")]
@@ -318,24 +313,48 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Open the comparison view as a large centered window.
+    /// Open the comparison in a separate native window using egui Viewport.
     #[cfg(feature = "snapshot")]
-    fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
+    fn open_comparison(&mut self, ctx: &egui::Context, snapshot_id: i64, snapshot_name: String) {
         if let Some(manager) = &self.snapshot_manager {
             match manager.load_snapshot(snapshot_id) {
                 Ok(root) => {
-                    self.comparison_state = Some(crate::ui::comparison::ComparisonWindow {
-                        open: true,
-                        snapshot_id,
-                        snapshot_name,
-                        snapshot_root: Some(Arc::new(root)),
-                        left_nav_stack: Vec::new(),
-                        right_nav_stack: Vec::new(),
-                        left_selected: None,
-                        right_selected: None,
-                        diff_cache: None,
-                        diff_cache_key: None,
-                    });
+                    let snapshot_root = Arc::new(root);
+                    let scan_result = self.scan_result.clone();
+                    let name = snapshot_name.clone();
+
+                    // Create a deferred viewport — a separate native window
+                    ctx.show_viewport_deferred(
+                        egui::ViewportId::from_hash_of("comparison_window"),
+                        egui::ViewportBuilder::default()
+                            .with_title(format!("对比: {}", name))
+                            .with_inner_size([1280.0, 768.0])
+                            .with_min_inner_size([800.0, 600.0]),
+                        move |ctx, class| {
+                            // Each frame: render the comparison UI
+                            if class == egui::ViewportClass::Embedded {
+                                // Embedded viewport (fallback) — just show a message
+                                egui::CentralPanel::default().show(ctx, |ui| {
+                                    ui.label("对比窗口");
+                                });
+                                return;
+                            }
+
+                            // Check if window should close
+                            if ctx.input(|i| i.viewport().close_requested()) {
+                                return;
+                            }
+
+                            // Build the comparison UI
+                            let data = crate::ui::comparison::ComparisonData {
+                                snapshot_root: snapshot_root.clone(),
+                                snapshot_name: name.clone(),
+                                current_scan: scan_result.clone(),
+                            };
+                            crate::ui::comparison::comparison_window_ui(ctx, &data);
+                        },
+                    );
+
                     self.snapshot_dialog_open = false;
                 }
                 Err(e) => {
@@ -581,25 +600,17 @@ impl eframe::App for DiskReviewerApp {
                         }
                     }
                     SnapshotAction::OpenComparison(id) => {
-                        // Find the snapshot name before calling open_comparison
-                        // (avoids borrow conflict with &self.snapshot_manager)
                         let name = self.snapshot_dialog_state.snapshots.iter()
                             .find(|s| s.id == id)
                             .map(|s| s.name.clone())
                             .unwrap_or_else(|| format!("快照 #{}", id));
-                        self.open_comparison(id, name);
+                        self.open_comparison(ctx, id, name);
                     }
                     SnapshotAction::None => {}
                 }
             }
         }
 
-        // Comparison window rendering (after snapshot dialog)
-        #[cfg(feature = "snapshot")]
-        if let Some(comp) = &mut self.comparison_state {
-            let scan = self.scan_result.as_ref().map(|r| r.as_ref());
-            crate::ui::comparison::comparison_window_ui(ctx, comp, scan);
-        }
     }
 }
 
