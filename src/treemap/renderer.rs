@@ -77,11 +77,18 @@ pub fn paint_treemap(
     let clk = pointer.button_clicked(egui::PointerButton::Primary);
     if dbl || clk {
         eprintln!("[input] double={} click={} pos={:?}", dbl, clk, interact_pos);
+        // 打印所有 nodes 信息用于调试
+        for (i, node) in nodes.iter().enumerate() {
+            let r = node.rect.translate(offset);
+            eprintln!("  [{}] {} dir={} rect=({:.0},{:.0},{:.0},{:.0})",
+                i, node.label, node.is_dir, r.min.x, r.min.y, r.max.x, r.max.y);
+        }
     }
     if dbl {
         if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
-                eprintln!("[input] DoubleClick idx={}", idx);
+                eprintln!("[input] DoubleClick idx={} label={} is_dir={}",
+                    idx, nodes[idx].label, nodes[idx].is_dir);
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
