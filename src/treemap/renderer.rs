@@ -1,5 +1,4 @@
 use egui::{Color32, CornerRadius, FontId, Sense, Stroke, StrokeKind, Ui, emath};
-use egui::emath::Rect;
 use crate::treemap::{TreemapAction, TreemapNode};
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
@@ -17,9 +16,8 @@ pub fn paint_treemap(
     selected_index: Option<usize>,
     canvas_rect: emath::Rect,
 ) -> Option<TreemapAction> {
-    // 分配 painter，使用 Sense::click() 让 egui 追踪这个区域的输入
-    // 同时用 interact_pointer_pos 获取精确的点击/双击位置
-    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click());
+    // 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
+    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
     let response_rect = response.rect;
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
@@ -39,7 +37,6 @@ pub fn paint_treemap(
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        // 填充 + 细边框
         painter.rect_filled(rect, CornerRadius::same(1), node.color);
         painter.rect_stroke(
             rect,
@@ -48,7 +45,6 @@ pub fn paint_treemap(
             StrokeKind::Middle,
         );
 
-        // 选中高亮：黄色边框
         if selected_index == Some(i) {
             painter.rect_stroke(
                 rect.shrink(1.0),
@@ -58,7 +54,6 @@ pub fn paint_treemap(
             );
         }
 
-        // 标签
         let area = rect.width() * rect.height();
         if area >= LABEL_AREA_THRESHOLD {
             let text_color = if selected_index == Some(i) { Color32::BLACK } else { Color32::WHITE };
@@ -72,60 +67,20 @@ pub fn paint_treemap(
         }
     }
 
-    // 半透明浮动图例（左上角）
-    use crate::treemap::color::FileCategory;
-    let legend_items = [
-        FileCategory::Document,
-        FileCategory::Image,
-        FileCategory::Video,
-        FileCategory::Audio,
-        FileCategory::Archive,
-        FileCategory::Code,
-        FileCategory::Executable,
-        FileCategory::System,
-        FileCategory::Temp,
-        FileCategory::Other,
-    ];
-    let swatch = 10.0;
-    let gap = 5.0;
-    let label_w = 38.0; // 每个标签估算宽度
-    let total_w = legend_items.len() as f32 * (swatch + gap + label_w) + gap;
-    let legend_bg = Rect::from_min_size(
-        response_rect.min + emath::vec2(4.0, 4.0),
-        emath::vec2(total_w, swatch + 8.0),
-    );
-    painter.rect_filled(
-        legend_bg,
-        CornerRadius::same(4),
-        Color32::from_rgba_premultiplied(0, 0, 0, 150),
-    );
-    let mut cx = legend_bg.min.x + gap;
-    for cat in &legend_items {
-        let swatch_rect = Rect::from_min_size(
-            emath::pos2(cx, legend_bg.min.y + 4.0),
-            emath::vec2(swatch, swatch),
-        );
-        painter.rect_filled(swatch_rect, CornerRadius::same(1), cat.color());
-        painter.text(
-            emath::pos2(cx + swatch + 2.0, legend_bg.min.y + 5.0),
-            egui::Align2::LEFT_TOP,
-            cat.label(),
-            FontId::proportional(9.0),
-            Color32::WHITE,
-        );
-        cx += swatch + gap + label_w;
-    }
+    // 交互检测：手动轮询 input_state，不依赖 Sense
+    // 这样双击的第一次 click 不会被 Sense 消费
+    let pointer = ui.input(|i| i.pointer.clone());
+    let interact_pos = pointer.interact_pos();
 
-    // 交互检测：优先检测双击，再检测单击
-    // 使用 response.double_clicked() + interact_pointer_pos() 获取精确位置
-    if response.double_clicked() {
-        if let Some(pos) = response.interact_pointer_pos() {
+    // 先检测双击
+    if pointer.button_double_clicked(egui::PointerButton::Primary) {
+        if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
-    } else if response.clicked() {
-        if let Some(pos) = response.interact_pointer_pos() {
+    } else if pointer.button_clicked(egui::PointerButton::Primary) {
+        if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::Click(idx));
             }

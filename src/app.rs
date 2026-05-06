@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Instant;
 
 use crate::platform::drives::{self, DriveInfo};
 use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
@@ -24,7 +23,7 @@ pub struct DiskReviewerApp {
     pub treemap_nodes: Vec<crate::treemap::TreemapNode>,
     needs_rebuild: bool,
     last_canvas_rect: Option<Rect>,
-    last_resize: Option<Instant>,
+    pending_resize: Option<Rect>,
 }
 
 impl DiskReviewerApp {
@@ -42,7 +41,7 @@ impl DiskReviewerApp {
             treemap_nodes: Vec::new(),
             needs_rebuild: false,
             last_canvas_rect: None,
-            last_resize: None,
+            pending_resize: None,
         }
     }
 
@@ -245,9 +244,30 @@ impl eframe::App for DiskReviewerApp {
             ui.separator();
             ui.label(&self.status_message);
 
+            // 颜色图例（单行横向排列，始终显示）
+            ui.horizontal(|ui| {
+                use crate::treemap::color::FileCategory;
+                for cat in [
+                    FileCategory::Document,
+                    FileCategory::Image,
+                    FileCategory::Video,
+                    FileCategory::Audio,
+                    FileCategory::Archive,
+                    FileCategory::Code,
+                    FileCategory::Executable,
+                    FileCategory::System,
+                    FileCategory::Temp,
+                    FileCategory::Other,
+                ] {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
+                    ui.label(cat.label());
+                }
+            });
+            ui.separator();
+
             // Treemap 画布
             if !self.treemap_nodes.is_empty() || self.scan_result.is_some() {
-                // 计算画布尺寸
                 let canvas_rect = Rect::from_min_size(
                     pos2(0.0, 0.0),
                     vec2(ui.available_width(), ui.available_height().max(200.0)),
@@ -255,38 +275,31 @@ impl eframe::App for DiskReviewerApp {
 
                 // 布局重建逻辑：
                 // 1. 首次/导航/下钻时立即重建
-                // 2. 窗口 resize 时防抖：尺寸变化后等待 200ms 无新变化再重建
+                // 2. 窗口 resize 时：记录待重建尺寸，鼠标释放后才重建（避免拖动卡顿）
                 let canvas_changed = self.last_canvas_rect != Some(canvas_rect);
                 if self.needs_rebuild {
-                    // 立即重建（扫描完成、下钻、导航）
                     if let Some(_dir) = self.current_dir() {
                         self.rebuild_treemap(canvas_rect);
                     }
                     self.needs_rebuild = false;
                     self.last_canvas_rect = Some(canvas_rect);
-                    self.last_resize = None;
+                    self.pending_resize = None;
                 } else if canvas_changed {
-                    // 尺寸变化：启动防抖计时器
-                    let now = Instant::now();
-                    match self.last_resize {
-                        None => {
-                            // 第一次检测到变化，记录时间，本帧不重建
-                            self.last_resize = Some(now);
+                    // 记录待重建尺寸，等鼠标释放
+                    self.pending_resize = Some(canvas_rect);
+                }
+
+                // 鼠标释放时执行待处理的 resize 重建
+                if let Some(pending_rect) = self.pending_resize {
+                    let pointer = ui.input(|i| i.pointer.clone());
+                    if !pointer.button_down(egui::PointerButton::Primary) {
+                        // 鼠标已释放，执行重建
+                        if let Some(_dir) = self.current_dir() {
+                            self.rebuild_treemap(pending_rect);
                         }
-                        Some(prev) => {
-                            // 距离上次变化超过 200ms，执行重建
-                            if now.duration_since(prev).as_millis() >= 200 {
-                                if let Some(_dir) = self.current_dir() {
-                                    self.rebuild_treemap(canvas_rect);
-                                }
-                                self.last_canvas_rect = Some(canvas_rect);
-                                self.last_resize = None;
-                            }
-                        }
+                        self.last_canvas_rect = Some(pending_rect);
+                        self.pending_resize = None;
                     }
-                } else {
-                    // 尺寸稳定，清除防抖计时器
-                    self.last_resize = None;
                 }
 
                 // paint_treemap 返回双击下钻的目录索引或单击选中的索引
