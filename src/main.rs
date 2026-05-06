@@ -2,6 +2,7 @@ mod app;
 mod scanner;
 mod platform;
 mod treemap;
+#[cfg(feature = "snapshot")]
 mod snapshot;
 mod ui;
 

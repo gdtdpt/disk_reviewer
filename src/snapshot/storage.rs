@@ -1,3 +1,5 @@
+#![cfg(feature = "snapshot")]
+
 use crate::scanner::{DirNode, Entry};
 use std::path::Path;
 
