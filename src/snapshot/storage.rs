@@ -14,7 +14,14 @@ pub struct SnapshotMeta {
     pub total_files: u64,
 }
 
-/// SQLite-backed snapshot storage with path-indexed directory nodes
+/// SQLite-backed snapshot storage with path-indexed directory nodes.
+///
+/// Note: `save_snapshot`, `delete_snapshot`, and `rename_snapshot` take
+/// `&mut self` because `rusqlite::Connection::execute()` requires mutable
+/// access. This is a known limitation of the rusqlite API. For the current
+/// single-threaded egui model this is acceptable. If shared or
+/// multi-threaded access is needed in the future, wrap the `Connection` in
+/// `Rc<RefCell<Connection>>` or `std::sync::Mutex`.
 pub struct SnapshotStorage {
     conn: rusqlite::Connection,
 }
