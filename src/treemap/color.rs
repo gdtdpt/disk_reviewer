@@ -9,18 +9,35 @@ pub enum FileCategory {
 }
 
 impl FileCategory {
+    /// 色块主体颜色（上部 60% 纯色区域）
     pub fn color(&self) -> Color32 {
         match self {
-            FileCategory::Document   => Color32::from_rgb(70, 130, 180),
+            FileCategory::Document   => Color32::from_rgb(40, 100, 200),
             FileCategory::Image      => Color32::from_rgb(46, 139, 87),
             FileCategory::Video      => Color32::from_rgb(220, 20, 60),
             FileCategory::Audio      => Color32::from_rgb(255, 140, 0),
             FileCategory::Archive    => Color32::from_rgb(128, 0, 128),
             FileCategory::Code       => Color32::from_rgb(0, 128, 128),
             FileCategory::Executable => Color32::from_rgb(184, 134, 11),
-            FileCategory::System     => Color32::from_rgb(100, 180, 220),
+            FileCategory::System     => Color32::from_rgb(120, 120, 140),
             FileCategory::Temp       => Color32::from_rgb(255, 100, 100),
             FileCategory::Other      => Color32::from_rgb(160, 120, 200),
+        }
+    }
+
+    /// 渐变色目标（下部 40% 渐变终点）—— 同色系更浅的颜色
+    pub fn gradient_end(&self) -> Color32 {
+        match self {
+            FileCategory::Document   => Color32::from_rgb(140, 180, 230),
+            FileCategory::Image      => Color32::from_rgb(130, 200, 160),
+            FileCategory::Video      => Color32::from_rgb(240, 120, 130),
+            FileCategory::Audio      => Color32::from_rgb(255, 200, 120),
+            FileCategory::Archive    => Color32::from_rgb(190, 120, 190),
+            FileCategory::Code       => Color32::from_rgb(100, 190, 190),
+            FileCategory::Executable => Color32::from_rgb(220, 190, 110),
+            FileCategory::System     => Color32::from_rgb(180, 180, 200),
+            FileCategory::Temp       => Color32::from_rgb(255, 170, 170),
+            FileCategory::Other      => Color32::from_rgb(210, 180, 240),
         }
     }
 
@@ -164,9 +181,9 @@ mod tests {
     #[test]
     fn test_document_color() {
         let c = FileCategory::Document.color();
-        assert_eq!(c.r(), 70);
-        assert_eq!(c.g(), 130);
-        assert_eq!(c.b(), 180);
+        assert_eq!(c.r(), 40);
+        assert_eq!(c.g(), 100);
+        assert_eq!(c.b(), 200);
     }
 
     #[test]

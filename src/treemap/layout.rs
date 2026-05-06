@@ -50,6 +50,7 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
                 rect,
                 label: entry_name(entry),
                 color: cat.color(),
+                category: cat,
                 depth: 0,
                 entry_index,
                 is_dir: matches!(entry, Entry::Dir(_)),

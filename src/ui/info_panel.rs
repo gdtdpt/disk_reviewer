@@ -12,31 +12,31 @@ pub fn info_panel_ui(
     ui.separator();
 
     if let Some(node) = selected {
-        ui.label(format!("名称: {}", node.label));
-        ui.label(format!("大小: {}", format_size(node.size)));
-        ui.label(format!("占比: {:.1}%", node.percentage));
-        ui.label(if node.is_dir { "类型: 目录" } else { "类型: 文件" });
+        ui.label(egui::RichText::new(format!("名称: {}", node.label)).monospace().size(14.0));
+        ui.label(egui::RichText::new(format!("大小: {}", format_size(node.size))).monospace().size(14.0));
+        ui.label(egui::RichText::new(format!("占比: {:.1}%", node.percentage)).monospace().size(14.0));
+        ui.label(egui::RichText::new(if node.is_dir { "类型: 目录" } else { "类型: 文件" }).monospace().size(14.0));
         if node.is_dir {
             if let Some(dir) = current_dir {
                 if let Some(crate::scanner::Entry::Dir(d)) = dir.children.get(node.entry_index) {
-                    ui.label(format!("文件数: {}", d.file_count));
-                    ui.label(format!(
+                    ui.label(egui::RichText::new(format!("文件数: {}", d.file_count)).monospace().size(14.0));
+                    ui.label(egui::RichText::new(format!(
                         "子目录: {}",
                         d.children
                             .iter()
                             .filter(|c| matches!(c, crate::scanner::Entry::Dir(_)))
                             .count()
-                    ));
+                    )).monospace().size(14.0));
                 }
             }
         }
     } else if let Some(dir) = current_dir {
-        ui.label(format!("当前: {}", dir.name));
-        ui.label(format!("总大小: {}", format_size(dir.total_size)));
-        ui.label(format!("文件数: {}", dir.file_count));
-        ui.label(format!("子条目: {}", dir.children.len()));
+        ui.label(egui::RichText::new(format!("当前: {}", dir.name)).monospace().size(14.0));
+        ui.label(egui::RichText::new(format!("总大小: {}", format_size(dir.total_size))).monospace().size(14.0));
+        ui.label(egui::RichText::new(format!("文件数: {}", dir.file_count)).monospace().size(14.0));
+        ui.label(egui::RichText::new(format!("子条目: {}", dir.children.len())).monospace().size(14.0));
     } else {
-        ui.label("点击色块查看详情");
+        ui.label(egui::RichText::new("点击色块查看详情").monospace().size(14.0));
     }
 
 }

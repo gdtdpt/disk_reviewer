@@ -1,8 +1,10 @@
 use egui::{Color32, CornerRadius, FontId, Mesh, Pos2, Sense, Stroke, StrokeKind, Ui, emath, Vec2};
 use crate::treemap::{TreemapAction, TreemapNode};
+use crate::treemap::color::FileCategory;
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
 const SELECTED_STROKE_WIDTH: f32 = 2.0;
+const BASE_FONT_SIZE: f32 = 14.0;
 
 /// 绘制 Treemap，返回用户交互动作
 ///
@@ -19,6 +21,11 @@ pub fn paint_treemap(
     // 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
     let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
     let response_rect = response.rect;
+
+    // 根据 DPI 缩放字体大小
+    let dpi_scale = ui.ctx().pixels_per_point();
+    let font_size = (BASE_FONT_SIZE * dpi_scale).max(10.0);
+    let label_font = FontId::monospace(font_size);
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
     let offset = response_rect.min - canvas_rect.min;
@@ -37,9 +44,9 @@ pub fn paint_treemap(
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        // 垂直渐变填充：顶部 60% 纯色基色，底部 40% 渐变为白色
+        // 垂直渐变填充：顶部 60% 纯色基色，底部 40% 渐变为同色系浅色
         let base_color = node.color;
-        let white = Color32::WHITE;
+        let end_color = node.category.gradient_end();
         let gradient_start = rect.top() + rect.height() * 0.6;
         let mut mesh = Mesh::default();
         // 纯色区域（上 60%）：4 个顶点
@@ -48,8 +55,8 @@ pub fn paint_treemap(
         mesh.colored_vertex(Pos2::new(rect.right(), gradient_start), base_color);  // 2: 渐变起点右
         mesh.colored_vertex(Pos2::new(rect.left(), gradient_start), base_color);   // 3: 渐变起点左
         // 渐变区域（下 40%）：2 个底边顶点
-        mesh.colored_vertex(Pos2::new(rect.right(), rect.bottom()), white);        // 4: 右下
-        mesh.colored_vertex(Pos2::new(rect.left(), rect.bottom()), white);         // 5: 左下
+        mesh.colored_vertex(Pos2::new(rect.right(), rect.bottom()), end_color);    // 4: 右下
+        mesh.colored_vertex(Pos2::new(rect.left(), rect.bottom()), end_color);     // 5: 左下
         // 纯色区域（2 个三角形）
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(0, 2, 3);
@@ -81,7 +88,7 @@ pub fn paint_treemap(
                 rect.left_top() + emath::vec2(3.0, 3.0),
                 egui::Align2::LEFT_TOP,
                 &node.label,
-                FontId::proportional(12.0),
+                label_font.clone(),
                 text_color,
             );
         }

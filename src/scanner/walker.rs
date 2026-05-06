@@ -259,4 +259,5 @@ mod tests {
         let result = scan_directory(&fake_path);
         assert!(result.is_err(), "不存在的路径应返回错误");
     }
+
 }
