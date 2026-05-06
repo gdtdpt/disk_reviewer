@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::treemap::color::FileCategory;
 
 #[derive(Debug, Clone)]
 pub struct FileEntry {
@@ -14,6 +15,7 @@ pub struct DirNode {
     pub file_count: u64,
     pub children: Vec<Entry>,
     pub access_denied: bool,
+    pub dominant_cat: FileCategory,
 }
 
 #[derive(Debug, Clone)]
@@ -64,13 +66,6 @@ impl Default for AggThresholds {
 
 impl DirNode {
     /// 后处理：递归地对超过阈值的子目录执行 Others 聚合（SCAN-05）
-    ///
-    /// 算法：
-    /// 1. 先递归处理所有子目录
-    /// 2. 如果 children.len() <= max_entries，不聚合
-    /// 3. 按 size 降序排序，保留 top_n 个
-    /// 4. 剩余条目中，大小 < total_size * min_relative_size 的聚合为 Others
-    /// 5. 剩余中大小 >= 阈值的保留
     pub fn finish(&mut self, thresholds: &AggThresholds) {
         // 先递归处理子目录
         for child in &mut self.children {
@@ -78,6 +73,9 @@ impl DirNode {
                 dir.finish(thresholds);
             }
         }
+
+        // 预计算主导颜色（缓存，避免 layout_treemap 时重复递归）
+        self.dominant_cat = crate::treemap::color::compute_dominant(self);
 
         // 如果未超过阈值，不需要聚合
         if self.children.len() <= thresholds.max_entries {
@@ -90,13 +88,9 @@ impl DirNode {
         // 保留 top_n 个
         if self.children.len() > thresholds.top_n {
             let rest = self.children.split_off(thresholds.top_n);
-
-            // 在剩余条目中，区分 significant（保留）和 insignificant（聚合）
             let min_size = (thresholds.min_relative_size * self.total_size as f64) as u64;
-
             let mut significant = Vec::new();
             let mut insignificant = Vec::new();
-
             for entry in rest {
                 if entry.size() >= min_size {
                     significant.push(entry);
@@ -104,11 +98,7 @@ impl DirNode {
                     insignificant.push(entry);
                 }
             }
-
-            // significant 条目放回 children
             self.children.extend(significant);
-
-            // insignificant 条目聚合为 Others
             if !insignificant.is_empty() {
                 let others_size: u64 = insignificant.iter().map(|e| e.size()).sum();
                 self.children.push(Entry::Others(OthersEntry {
@@ -144,6 +134,7 @@ mod tests {
             file_count: n as u64,
             children,
             access_denied: false,
+            dominant_cat: crate::treemap::color::FileCategory::Other,
         }
     }
 

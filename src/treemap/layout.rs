@@ -45,7 +45,7 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
                 ),
             );
             let cat = if let Entry::Dir(d) = entry {
-                dominant_category(d)
+                d.dominant_cat
             } else {
                 categorize_entry(entry)
             };
@@ -174,6 +174,7 @@ mod tests {
             file_count: entries.len() as u64,
             children: entries,
             access_denied: false,
+            dominant_cat: crate::treemap::color::FileCategory::Other,
         }
     }
 

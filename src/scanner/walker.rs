@@ -63,6 +63,7 @@ pub fn scan_directory(path: &Path) -> Result<DirNode, ScanError> {
         file_count: 0,
         children: Vec::new(),
         access_denied: false,
+        dominant_cat: crate::treemap::color::FileCategory::Other,
     };
 
     // 构造搜索路径: \\?\C:\target\*

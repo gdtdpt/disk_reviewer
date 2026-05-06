@@ -315,11 +315,21 @@ impl eframe::App for DiskReviewerApp {
                     match action {
                         TreemapAction::DoubleClick(child_index) => {
                             if let Some(dir) = self.current_dir() {
+                                eprintln!("[drill] DoubleClick idx={} children={}", child_index, dir.children.len());
                                 if let Some(entry) = dir.children.get(child_index) {
+                                    eprintln!("[drill] entry type: {}", match entry {
+                                        Entry::Dir(_) => "Dir",
+                                        Entry::File(_) => "File",
+                                        Entry::Others(_) => "Others",
+                                        Entry::Symlink(_) => "Symlink",
+                                        Entry::AccessDenied { .. } => "AccessDenied",
+                                    });
                                     if matches!(entry, Entry::Dir(_)) {
                                         self.drill_down(child_index);
                                         return;
                                     }
+                                } else {
+                                    eprintln!("[drill] child_index {} out of range", child_index);
                                 }
                             }
                         }

@@ -69,13 +69,19 @@ pub fn categorize_entry(entry: &Entry) -> FileCategory {
     }
 }
 
-pub fn dominant_category(dir: &DirNode) -> FileCategory {
+/// 预计算目录的主导颜色（在 finish() 中调用一次，结果存入 DirNode.dominant_cat）
+pub fn compute_dominant(dir: &DirNode) -> FileCategory {
     let mut size_by_cat: std::collections::HashMap<FileCategory, u64> = std::collections::HashMap::new();
     accumulate_categories(dir, &mut size_by_cat);
     size_by_cat.into_iter()
         .max_by_key(|&(_, size)| size)
         .map(|(cat, _)| cat)
         .unwrap_or(FileCategory::Other)
+}
+
+/// 向后兼容：运行时计算（慢，不推荐在热路径使用）
+pub fn dominant_category(dir: &DirNode) -> FileCategory {
+    dir.dominant_cat
 }
 
 fn accumulate_categories(dir: &DirNode, acc: &mut std::collections::HashMap<FileCategory, u64>) {
@@ -177,8 +183,9 @@ mod tests {
                 Entry::File(FileEntry { name: "c.jpg".to_string(), size: 100 }),
             ],
             access_denied: false,
+            dominant_cat: FileCategory::Other,
         };
-        let dom = dominant_category(&dir);
+        let dom = compute_dominant(&dir);
         assert_eq!(dom, FileCategory::Document);
     }
 }
