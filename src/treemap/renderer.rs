@@ -75,20 +75,9 @@ pub fn paint_treemap(
     // 交互检测：手动轮询 input_state
     let dbl = pointer.button_double_clicked(egui::PointerButton::Primary);
     let clk = pointer.button_clicked(egui::PointerButton::Primary);
-    if dbl || clk {
-        eprintln!("[input] double={} click={} pos={:?}", dbl, clk, interact_pos);
-        // 打印所有 nodes 信息用于调试
-        for (i, node) in nodes.iter().enumerate() {
-            let r = node.rect.translate(offset);
-            eprintln!("  [{}] {} dir={} rect=({:.0},{:.0},{:.0},{:.0})",
-                i, node.label, node.is_dir, r.min.x, r.min.y, r.max.x, r.max.y);
-        }
-    }
     if dbl {
         if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
-                eprintln!("[input] DoubleClick idx={} label={} is_dir={}",
-                    idx, nodes[idx].label, nodes[idx].is_dir);
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
@@ -101,15 +90,18 @@ pub fn paint_treemap(
         }
     }
 
-    // 悬停提示
+    // 悬停提示：大字体、宽窗口、支持长名称换行
     if let Some(pos) = response.hover_pos() {
         for node in nodes.iter().rev() {
             if node.rect.translate(offset).contains(pos) {
                 let size_str = format_size(node.size);
                 response.on_hover_ui_at_pointer(|ui| {
-                    ui.label(&node.label);
-                    ui.label(size_str);
-                    ui.label(format!("{:.1}%", node.percentage));
+                    ui.set_min_width(200.0);
+                    ui.label(egui::RichText::new(&node.label).size(14.0).strong());
+                    ui.label(egui::RichText::new(size_str).size(13.0));
+                    ui.label(egui::RichText::new(format!("{:.1}%", node.percentage)).size(13.0));
+                    let type_str = if node.is_dir { "目录" } else { "文件" };
+                    ui.label(egui::RichText::new(type_str).size(12.0).color(Color32::GRAY));
                 });
                 break;
             }

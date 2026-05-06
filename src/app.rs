@@ -164,8 +164,6 @@ impl DiskReviewerApp {
             if let Some(node) = self.treemap_nodes.get(child_index) {
                 let orig_idx = node.entry_index;
                 if let Some(crate::scanner::Entry::Dir(_)) = dir.children.get(orig_idx) {
-                    eprintln!("[drill] drilling into '{}' (treemap_idx={}, orig_idx={})",
-                        node.label, child_index, orig_idx);
                     self.nav_stack.push(orig_idx);
                     self.selected_index = None;
                     self.needs_rebuild = true;
@@ -181,14 +179,8 @@ impl DiskReviewerApp {
     }
 
     fn rebuild_treemap(&mut self, canvas: Rect) {
-        let t = std::time::Instant::now();
         if let Some(dir) = self.current_dir() {
-            let t2 = std::time::Instant::now();
             self.treemap_nodes = crate::treemap::layout_treemap(dir, canvas);
-            let layout_ms = t2.elapsed().as_secs_f64() * 1000.0;
-            let total_ms = t.elapsed().as_secs_f64() * 1000.0;
-            eprintln!("[perf] rebuild_treemap: layout={:.2}ms total={:.2}ms nodes={}",
-                layout_ms, total_ms, self.treemap_nodes.len());
         } else {
             self.treemap_nodes.clear();
         }

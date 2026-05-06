@@ -1,10 +1,9 @@
 use crate::scanner::{DirNode, Entry, FileEntry};
-use crate::treemap::color::{categorize_entry, dominant_category};
+use crate::treemap::color::categorize_entry;
 use egui::emath::{pos2, vec2, Rect};
 use std::path::PathBuf;
 
 pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::TreemapNode> {
-    let t = std::time::Instant::now();
     let total_size = dir.total_size as f64;
     if total_size == 0.0 {
         return Vec::new();
@@ -27,9 +26,7 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
 
     // 3. Run squarified layout
     let sizes: Vec<f64> = items.iter().map(|&(_, _, s)| s as f64).collect();
-    let t2 = std::time::Instant::now();
     let nrects = squarify_recursive(&sizes, 0.0, 0.0, 1.0, 1.0);
-    let squarify_ms = t2.elapsed().as_secs_f64() * 1000.0;
 
     // 4. Scale to canvas + assemble TreemapNode
     let result: Vec<_> = items.into_iter().zip(nrects.into_iter())
@@ -61,9 +58,6 @@ pub fn layout_treemap(dir: &DirNode, canvas: Rect) -> Vec<crate::treemap::Treema
             }
         })
         .collect();
-    let total_ms = t.elapsed().as_secs_f64() * 1000.0;
-    eprintln!("[perf] layout_treemap: children={} squarify={:.2}ms total={:.2}ms",
-        result.len(), squarify_ms, total_ms);
     result
 }
 
@@ -77,6 +71,13 @@ fn squarify_recursive(sizes: &[f64], x: f32, y: f32, w: f32, h: f32) -> Vec<NRec
 
     let total: f64 = sizes.iter().sum();
     if total == 0.0 { return Vec::new(); }
+
+    // 如果剩余区域非常扁（长宽比 > 4:1），强制将所有剩余条目均匀分布在一行/一列
+    // 避免最下一行产生极矮的扁条矩形
+    let aspect = w.max(h) / w.min(h).max(0.001);
+    if aspect > 4.0 && n <= 8 {
+        return layout_linear(sizes, x, y, w, h, total);
+    }
 
     let short_side = w.min(h);
     let long_side = w.max(h);
@@ -104,7 +105,6 @@ fn squarify_recursive(sizes: &[f64], x: f32, y: f32, w: f32, h: f32) -> Vec<NRec
     let mut offset = 0.0f32;
 
     if w >= h {
-        // 行沿长边（w）方向铺满，行高 = row_ratio * short_side
         let row_h = row_ratio * h;
         for &size in &row {
             let sw = (size as f32 / row_total as f32) * w;
@@ -113,7 +113,6 @@ fn squarify_recursive(sizes: &[f64], x: f32, y: f32, w: f32, h: f32) -> Vec<NRec
         }
         result.extend(squarify_recursive(remaining, x, y + row_h, w, h - row_h));
     } else {
-        // 行沿长边（h）方向铺满，行宽 = row_ratio * short_side
         let row_w = row_ratio * w;
         for &size in &row {
             let sh = (size as f32 / row_total as f32) * h;
@@ -121,6 +120,28 @@ fn squarify_recursive(sizes: &[f64], x: f32, y: f32, w: f32, h: f32) -> Vec<NRec
             offset += sh;
         }
         result.extend(squarify_recursive(remaining, x + row_w, y, w - row_w, h));
+    }
+    result
+}
+
+/// 当区域非常扁时，将所有条目均匀分布在长边方向，避免极矮扁条
+fn layout_linear(sizes: &[f64], x: f32, y: f32, w: f32, h: f32, total: f64) -> Vec<NRect> {
+    let mut result = Vec::new();
+    let mut offset = 0.0f32;
+    if w >= h {
+        // 水平排列，每个矩形高度 = h，宽度按比例
+        for &size in sizes {
+            let sw = (size as f32 / total as f32) * w;
+            result.push(NRect { x: x + offset, y, w: sw, h });
+            offset += sw;
+        }
+    } else {
+        // 垂直排列，每个矩形宽度 = w，高度按比例
+        for &size in sizes {
+            let sh = (size as f32 / total as f32) * h;
+            result.push(NRect { x, y: y + offset, w, h: sh });
+            offset += sh;
+        }
     }
     result
 }
