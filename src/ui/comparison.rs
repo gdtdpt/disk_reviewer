@@ -5,17 +5,13 @@ use egui::{Color32, RichText};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Data shared between the main window and the comparison viewport.
-#[derive(Clone)]
-pub struct ComparisonData {
-    pub snapshot_root: Arc<DirNode>,
+/// Comparison window state. Created by `open_comparison` and rendered as a
+/// large egui::Window. The `open` field is managed by `Window::open()`.
+pub struct ComparisonWindow {
+    pub open: bool,
+    pub snapshot_id: i64,
     pub snapshot_name: String,
-    pub current_scan: Option<Arc<DirNode>>,
-}
-
-/// Persistent state for the comparison window, stored in egui memory.
-#[derive(Default, Clone)]
-struct ComparisonState {
+    pub snapshot_root: Option<Arc<DirNode>>,
     left_nav_stack: Vec<usize>,
     right_nav_stack: Vec<usize>,
     left_selected: Option<usize>,
@@ -24,13 +20,20 @@ struct ComparisonState {
     diff_cache_key: Option<Vec<usize>>,
 }
 
-impl ComparisonState {
-    fn load(ctx: &egui::Context) -> Self {
-        ctx.data_mut(|d| d.get_temp(egui::Id::new("comparison_state")).unwrap_or_default())
-    }
-
-    fn save(self, ctx: &egui::Context) {
-        ctx.data_mut(|d| d.insert_temp(egui::Id::new("comparison_state"), self));
+impl ComparisonWindow {
+    pub fn new(snapshot_id: i64, snapshot_name: String, snapshot_root: Arc<DirNode>) -> Self {
+        Self {
+            open: true,
+            snapshot_id,
+            snapshot_name,
+            snapshot_root: Some(snapshot_root),
+            left_nav_stack: Vec::new(),
+            right_nav_stack: Vec::new(),
+            left_selected: None,
+            right_selected: None,
+            diff_cache: None,
+            diff_cache_key: None,
+        }
     }
 }
 
@@ -81,171 +84,219 @@ fn compute_diff(
     }
 }
 
-/// Render the comparison UI inside a viewport.
-/// Called each frame by the viewport callback.
-pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
-    // Request continuous repaint so the viewport stays alive
-    ctx.request_repaint();
+/// Render the comparison window. Call this from `update()` when
+/// `comparison_state` is `Some`. The window is large and centered.
+pub fn comparison_window_ui(
+    ctx: &egui::Context,
+    window: &mut ComparisonWindow,
+    current_scan: Option<&DirNode>,
+) {
+    let snap_ref: &DirNode = match &window.snapshot_root {
+        Some(root) => root,
+        None => return,
+    };
 
-    let mut state = ComparisonState::load(ctx);
+    // Large centered window. We use a local bool for `Window::open()` because
+    // the closure mutably borrows `window`.  The close button writes to egui
+    // data so we can pick it up after `.show()` returns.
+    let mut is_open = window.open;
+    let close_requested = egui::Id::new("comparison_close_request");
 
-    egui::CentralPanel::default().show(ctx, |ui| {
-        let snap_ref: &DirNode = &data.snapshot_root;
-        let scan_ref: Option<&DirNode> = data.current_scan.as_deref();
-
-        // Title bar
-        ui.horizontal(|ui| {
-            ui.heading(RichText::new(format!(
-                "⚖ 对比: {} vs 当前扫描",
-                data.snapshot_name
-            )));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("✕ 关闭").clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
+    egui::Window::new(format!("⚖ 对比 — {}", window.snapshot_name))
+        .open(&mut is_open)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .default_size(egui::vec2(1200.0, 750.0))
+        .min_size(egui::vec2(800.0, 500.0))
+        .resizable(true)
+        .collapsible(false)
+        .show(ctx, |ui| {
+            // ── Title bar ──
+            ui.horizontal(|ui| {
+                ui.heading(RichText::new(format!(
+                    "⚖ 对比: {} vs 当前扫描",
+                    window.snapshot_name
+                )));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("✕ 关闭").clicked() {
+                        ctx.data_mut(|d| d.insert_temp(close_requested, true));
+                    }
+                });
             });
-        });
-        ui.add_space(8.0);
+            ui.add_space(8.0);
 
-        // Side-by-side panels — each panel uses vertical layout: title on top, treemap below
-        let available_width = ui.available_width();
-        let available_height = ui.available_height();
-        let panel_width = (available_width - 12.0) * 0.5;
+            // ── Side-by-side panels ──
+            let available_height = ui.available_height();
+            let panel_width = (ui.available_width() - 12.0) * 0.5;
+            let treemap_height = (available_height - 60.0).max(200.0);
 
-        ui.horizontal(|ui| {
-            // ── Left panel: current scan ──
-            ui.allocate_ui(egui::vec2(panel_width, available_height), |ui| {
-                // Title ABOVE the treemap (vertical layout)
-                ui.label(RichText::new("📁 当前扫描").heading());
+            ui.horizontal(|ui| {
+                // ── Left panel (current scan) ──
+                ui.vertical(|ui| {
+                    // Title ABOVE the treemap
+                    ui.label(RichText::new("📁 当前扫描").heading());
+                    ui.separator();
+
+                    // Canvas starts at the current cursor position (after title)
+                    let canvas_origin = egui::pos2(ui.min_rect().min.x, ui.cursor().min.y);
+                    let canvas = egui::Rect::from_min_size(
+                        canvas_origin,
+                        egui::vec2(panel_width, treemap_height),
+                    );
+
+                    if let Some(scan_root) = current_scan {
+                        let left_current = resolve_by_nav_stack(scan_root, &window.left_nav_stack);
+                        if let Some(left_dir) = left_current {
+                            let nodes = layout_treemap(left_dir, canvas);
+
+                            if let Some(action) = paint_treemap(
+                                ui, &nodes, window.left_selected, canvas, None,
+                            ) {
+                                match action {
+                                    TreemapAction::Click(idx) => window.left_selected = Some(idx),
+                                    TreemapAction::DoubleClick(idx) => {
+                                        if let Some(Entry::Dir(d)) =
+                                            left_dir.children.get(nodes[idx].entry_index)
+                                        {
+                                            window.left_nav_stack.push(nodes[idx].entry_index);
+                                            window.left_selected = None;
+                                            if let Some(right_dir) = resolve_by_nav_stack(
+                                                snap_ref, &window.right_nav_stack,
+                                            ) {
+                                                if let Some(ri) = find_matching_dir_index(d, right_dir) {
+                                                    window.right_nav_stack.push(ri);
+                                                    window.right_selected = None;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !window.left_nav_stack.is_empty() {
+                                ui.horizontal(|ui| {
+                                    if ui.button("<< 上层").clicked() {
+                                        window.left_nav_stack.pop();
+                                        window.left_selected = None;
+                                    }
+                                    ui.label(
+                                        RichText::new(format!("深度: {}", window.left_nav_stack.len()))
+                                            .size(11.0)
+                                            .color(Color32::GRAY),
+                                    );
+                                });
+                            }
+                        } else {
+                            ui.label(RichText::new("无法解析当前扫描树").color(Color32::RED));
+                            if ui.button("<< 返回根目录").clicked() {
+                                window.left_nav_stack.clear();
+                                window.left_selected = None;
+                            }
+                        }
+                    } else {
+                        ui.label(RichText::new("暂无扫描结果").color(Color32::GRAY));
+                    }
+                });
+
                 ui.separator();
 
-                let treemap_height = if !state.left_nav_stack.is_empty() {
-                    ui.available_height() - 30.0
-                } else {
-                    ui.available_height()
-                };
+                // ── Right panel (snapshot) ──
+                ui.vertical(|ui| {
+                    // Title ABOVE the treemap
+                    ui.label(
+                        RichText::new(format!("📸 快照: {}", window.snapshot_name)).heading(),
+                    );
+                    ui.separator();
 
-                if let Some(scan_root) = scan_ref {
-                    let left_current = resolve_by_nav_stack(scan_root, &state.left_nav_stack);
-                    if let Some(left_dir) = left_current {
-                        let canvas = egui::Rect::from_min_size(
-                            egui::pos2(0.0, 0.0),
-                            egui::vec2(panel_width, treemap_height.max(200.0)),
-                        );
-                        let nodes = layout_treemap(left_dir, canvas);
+                    // Canvas starts at the current cursor position (after title)
+                    let canvas_origin = egui::pos2(ui.min_rect().min.x, ui.cursor().min.y);
+                    let canvas = egui::Rect::from_min_size(
+                        canvas_origin,
+                        egui::vec2(ui.available_width(), treemap_height),
+                    );
 
-                        if let Some(action) = paint_treemap(ui, &nodes, state.left_selected, canvas, None) {
+                    let right_current = resolve_by_nav_stack(snap_ref, &window.right_nav_stack);
+                    if let Some(right_dir) = right_current {
+                        let nodes = layout_treemap(right_dir, canvas);
+
+                        let needs_recompute = window.diff_cache_key.as_ref()
+                            != Some(&window.right_nav_stack)
+                            || window.diff_cache.is_none();
+                        if needs_recompute {
+                            window.diff_cache = Some(compute_diff(
+                                &window.right_nav_stack,
+                                &window.left_nav_stack,
+                                snap_ref,
+                                current_scan,
+                            ));
+                            window.diff_cache_key = Some(window.right_nav_stack.clone());
+                        }
+
+                        let diff_map: HashMap<usize, &DiffNode> = window
+                            .diff_cache
+                            .as_ref()
+                            .map(|c| {
+                                c.iter()
+                                    .filter_map(|dn| dn.child_index.map(|i| (i, dn)))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        if let Some(action) = paint_treemap(
+                            ui,
+                            &nodes,
+                            window.right_selected,
+                            canvas,
+                            Some(&diff_map),
+                        ) {
                             match action {
-                                TreemapAction::Click(idx) => state.left_selected = Some(idx),
+                                TreemapAction::Click(idx) => window.right_selected = Some(idx),
                                 TreemapAction::DoubleClick(idx) => {
-                                    if let Some(Entry::Dir(d)) = left_dir.children.get(nodes[idx].entry_index) {
-                                        state.left_nav_stack.push(nodes[idx].entry_index);
-                                        state.left_selected = None;
-                                        if let Some(ri) = find_matching_dir_index(d,
-                                            resolve_by_nav_stack(snap_ref, &state.right_nav_stack).unwrap_or(snap_ref))
-                                        {
-                                            state.right_nav_stack.push(ri);
-                                            state.right_selected = None;
+                                    if let Some(Entry::Dir(d)) =
+                                        right_dir.children.get(nodes[idx].entry_index)
+                                    {
+                                        window.right_nav_stack.push(nodes[idx].entry_index);
+                                        window.right_selected = None;
+                                        if let Some(sr) = current_scan {
+                                            if let Some(left_dir) = resolve_by_nav_stack(
+                                                sr, &window.left_nav_stack,
+                                            ) {
+                                                if let Some(li) =
+                                                    find_matching_dir_index(d, left_dir)
+                                                {
+                                                    window.left_nav_stack.push(li);
+                                                    window.left_selected = None;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        if !state.left_nav_stack.is_empty() {
+                        if !window.right_nav_stack.is_empty() {
                             ui.horizontal(|ui| {
                                 if ui.button("<< 上层").clicked() {
-                                    state.left_nav_stack.pop();
-                                    state.left_selected = None;
+                                    window.right_nav_stack.pop();
+                                    window.right_selected = None;
                                 }
-                                ui.label(RichText::new(format!("深度: {}", state.left_nav_stack.len()))
-                                    .size(11.0).color(Color32::GRAY));
+                                ui.label(
+                                    RichText::new(format!(
+                                        "深度: {}",
+                                        window.right_nav_stack.len()
+                                    ))
+                                    .size(11.0)
+                                    .color(Color32::GRAY),
+                                );
                             });
                         }
                     } else {
-                        ui.label(RichText::new("无法解析当前扫描树").color(Color32::RED));
-                        if ui.button("<< 返回根目录").clicked() {
-                            state.left_nav_stack.clear();
-                            state.left_selected = None;
-                        }
+                        ui.label(RichText::new("暂无快照数据").color(Color32::GRAY));
                     }
-                } else {
-                    ui.label(RichText::new("暂无扫描结果").color(Color32::GRAY));
-                }
-            });
-
-            ui.separator();
-
-            // ── Right panel: snapshot with diff overlay ──
-            ui.allocate_ui(egui::vec2(ui.available_width(), available_height), |ui| {
-                // Title ABOVE the treemap (vertical layout)
-                ui.label(RichText::new(format!("📸 快照: {}", data.snapshot_name)).heading());
-                ui.separator();
-
-                let treemap_height = if !state.right_nav_stack.is_empty() {
-                    ui.available_height() - 30.0
-                } else {
-                    ui.available_height()
-                };
-
-                let right_current = resolve_by_nav_stack(snap_ref, &state.right_nav_stack);
-                if let Some(right_dir) = right_current {
-                    let canvas = egui::Rect::from_min_size(
-                        egui::pos2(0.0, 0.0),
-                        egui::vec2(ui.available_width(), treemap_height.max(200.0)),
-                    );
-                    let nodes = layout_treemap(right_dir, canvas);
-
-                    let needs_recompute = state.diff_cache_key.as_ref() != Some(&state.right_nav_stack)
-                        || state.diff_cache.is_none();
-                    if needs_recompute {
-                        state.diff_cache = Some(compute_diff(
-                            &state.right_nav_stack, &state.left_nav_stack,
-                            snap_ref, scan_ref,
-                        ));
-                        state.diff_cache_key = Some(state.right_nav_stack.clone());
-                    }
-
-                    let diff_map: HashMap<usize, &DiffNode> = state.diff_cache.as_ref()
-                        .map(|c| c.iter().filter_map(|dn| dn.child_index.map(|i| (i, dn))).collect())
-                        .unwrap_or_default();
-
-                    if let Some(action) = paint_treemap(ui, &nodes, state.right_selected, canvas, Some(&diff_map)) {
-                        match action {
-                            TreemapAction::Click(idx) => state.right_selected = Some(idx),
-                            TreemapAction::DoubleClick(idx) => {
-                                if let Some(Entry::Dir(d)) = right_dir.children.get(nodes[idx].entry_index) {
-                                    state.right_nav_stack.push(nodes[idx].entry_index);
-                                    state.right_selected = None;
-                                    if let Some(sr) = scan_ref {
-                                        if let Some(li) = find_matching_dir_index(d,
-                                            resolve_by_nav_stack(sr, &state.left_nav_stack).unwrap_or(sr))
-                                        {
-                                            state.left_nav_stack.push(li);
-                                            state.left_selected = None;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if !state.right_nav_stack.is_empty() {
-                        ui.horizontal(|ui| {
-                            if ui.button("<< 上层").clicked() {
-                                state.right_nav_stack.pop();
-                                state.right_selected = None;
-                            }
-                            ui.label(RichText::new(format!("深度: {}", state.right_nav_stack.len()))
-                                .size(11.0).color(Color32::GRAY));
-                        });
-                    }
-                } else {
-                    ui.label(RichText::new("暂无快照数据").color(Color32::GRAY));
-                }
+                });
             });
         });
-    });
 
-    state.save(ctx);
+    // Sync the open flag back (handles X button, close button, and native close)
+    let close_btn_clicked = ctx.data(|d| d.get_temp(close_requested).unwrap_or(false));
+    window.open = is_open && !close_btn_clicked;
 }

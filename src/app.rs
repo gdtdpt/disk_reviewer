@@ -47,6 +47,9 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_open: bool,
     #[cfg(feature = "snapshot")]
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
+    // Phase 3 Plan 04: Comparison window state
+    #[cfg(feature = "snapshot")]
+    pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
     // Async save state
     #[cfg(feature = "snapshot")]
     pub save_snapshot_receiver: Option<Receiver<SaveSnapshotMsg>>,
@@ -101,6 +104,8 @@ impl DiskReviewerApp {
             save_snapshot_receiver: None,
             #[cfg(feature = "snapshot")]
             snapshot_save_in_progress: false,
+            #[cfg(feature = "snapshot")]
+            comparison_state: None,
         }
     }
 
@@ -313,35 +318,19 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Open the comparison in a separate native window using egui Viewport.
+    /// Open the comparison view as a large centered window.
     #[cfg(feature = "snapshot")]
-    fn open_comparison(&mut self, ctx: &egui::Context, snapshot_id: i64, snapshot_name: String) {
+    fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
         if let Some(manager) = &self.snapshot_manager {
             match manager.load_snapshot(snapshot_id) {
                 Ok(root) => {
-                    let snapshot_root = Arc::new(root);
-                    let scan_result = self.scan_result.clone();
-                    let name = snapshot_name.clone();
-
-                    // Create a deferred viewport — a separate native window
-                    ctx.show_viewport_deferred(
-                        egui::ViewportId::from_hash_of("comparison_window"),
-                        egui::ViewportBuilder::default()
-                            .with_title(format!("对比: {}", name))
-                            .with_inner_size([1280.0, 768.0])
-                            .with_min_inner_size([800.0, 600.0]),
-                        move |ctx, _class| {
-                            // Build the comparison UI — the viewport stays alive
-                            // as long as the main window's event loop is running
-                            let data = crate::ui::comparison::ComparisonData {
-                                snapshot_root: snapshot_root.clone(),
-                                snapshot_name: name.clone(),
-                                current_scan: scan_result.clone(),
-                            };
-                            crate::ui::comparison::comparison_window_ui(ctx, &data);
-                        },
+                    self.comparison_state = Some(
+                        crate::ui::comparison::ComparisonWindow::new(
+                            snapshot_id,
+                            snapshot_name,
+                            Arc::new(root),
+                        ),
                     );
-
                     self.snapshot_dialog_open = false;
                 }
                 Err(e) => {
@@ -591,13 +580,23 @@ impl eframe::App for DiskReviewerApp {
                             .find(|s| s.id == id)
                             .map(|s| s.name.clone())
                             .unwrap_or_else(|| format!("快照 #{}", id));
-                        self.open_comparison(ctx, id, name);
+                        self.open_comparison(id, name);
                     }
                     SnapshotAction::None => {}
                 }
             }
         }
 
+        // Comparison window
+        #[cfg(feature = "snapshot")]
+        if let Some(comp) = &mut self.comparison_state {
+            let scan = self.scan_result.as_ref().map(|r| r.as_ref());
+            crate::ui::comparison::comparison_window_ui(ctx, comp, scan);
+            // Remove from state if closed
+            if !comp.open {
+                self.comparison_state = None;
+            }
+        }
     }
 }
 
