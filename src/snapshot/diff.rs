@@ -18,6 +18,9 @@ pub struct DiffNode {
     pub change: ChangeType,
     pub old_size: Option<u64>,
     pub new_size: u64,
+    /// Index of this entry within the parent DirNode's children vec.
+    /// Used for O(1) mapping from TreemapNode to DiffNode.
+    pub child_index: Option<usize>,
 }
 
 /// Extract the name for matching (D-19: match by name within same level)
@@ -41,35 +44,43 @@ pub fn entry_name(entry: &Entry) -> String {
 
 /// Diff two DirNode trees at one level.
 /// Matches entries by name (D-19). O(n + m) per level.
+///
+/// Each returned `DiffNode` carries a `child_index` recording the entry's position
+/// within `old.children` (`Some(idx)`) for entries present in the old tree, or `None`
+/// for entries that only exist in the new tree (Added). This enables correct
+/// positional mapping to treemap node `entry_index` without name-based lookups.
 pub fn diff_level(old: &DirNode, new: &DirNode) -> Vec<DiffNode> {
-    let old_names: Vec<String> = old.children.iter().map(|e| entry_name(e)).collect();
-    let old_map: HashMap<&str, &Entry> = old_names
+    // Build name -> index map for old children (first match wins for duplicate names)
+    let old_map: HashMap<String, usize> = old
+        .children
         .iter()
-        .map(|n| n.as_str())
-        .zip(old.children.iter())
+        .enumerate()
+        .map(|(idx, e)| (entry_name(e), idx))
         .collect();
-    let new_names: Vec<String> = new.children.iter().map(|e| entry_name(e)).collect();
-    let new_map: HashMap<&str, &Entry> = new_names
+    let new_map: HashMap<String, usize> = new
+        .children
         .iter()
-        .map(|n| n.as_str())
-        .zip(new.children.iter())
+        .enumerate()
+        .map(|(idx, e)| (entry_name(e), idx))
         .collect();
 
     let mut result = Vec::new();
 
-    // Entries in new tree
-    for new_entry in &new.children {
+    // Entries in new (scan) tree
+    for (_new_idx, new_entry) in new.children.iter().enumerate() {
         let name = entry_name(new_entry);
-        match old_map.get(name.as_str()) {
+        match old_map.get(&name) {
             None => {
                 result.push(DiffNode {
                     entry: new_entry.clone(),
                     change: ChangeType::Added,
                     old_size: None,
                     new_size: new_entry.size(),
+                    child_index: None, // not in old tree, no index in old children
                 });
             }
-            Some(old_entry) => {
+            Some(&old_idx) => {
+                let old_entry = &old.children[old_idx];
                 let old_size = old_entry.size();
                 let new_size = new_entry.size();
                 let change = if new_size > old_size {
@@ -84,20 +95,22 @@ pub fn diff_level(old: &DirNode, new: &DirNode) -> Vec<DiffNode> {
                     change,
                     old_size: Some(old_size),
                     new_size,
+                    child_index: Some(old_idx),
                 });
             }
         }
     }
 
     // Entries only in old tree (removed)
-    for old_entry in &old.children {
+    for (old_idx, old_entry) in old.children.iter().enumerate() {
         let name = entry_name(old_entry);
-        if !new_map.contains_key(name.as_str()) {
+        if !new_map.contains_key(&name) {
             result.push(DiffNode {
                 entry: old_entry.clone(),
                 change: ChangeType::Removed,
                 old_size: Some(old_entry.size()),
                 new_size: 0,
+                child_index: Some(old_idx),
             });
         }
     }

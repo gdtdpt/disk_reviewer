@@ -184,26 +184,25 @@ pub fn comparison_window_ui(
                                     right_dir
                                         .children
                                         .iter()
-                                        .map(|entry| DiffNode {
+                                        .enumerate()
+                                        .map(|(idx, entry)| DiffNode {
                                             entry: entry.clone(),
                                             change: ChangeType::Removed,
                                             old_size: Some(entry.size()),
                                             new_size: 0,
+                                            child_index: Some(idx),
                                         })
                                         .collect()
                                 };
 
                                 // Build diff_map: entry_index -> &DiffNode
+                                // Match by child_index (position in the snapshot's children)
+                                // instead of by label to avoid name-collision bugs.
                                 let diff_map: HashMap<usize, &DiffNode> = diff_nodes
                                     .iter()
                                     .filter_map(|dn| {
-                                        // Find the entry_index by matching entry_index from right_nodes
-                                        // We need to map DiffNode back to right_nodes entry_index
-                                        let name = crate::snapshot::entry_name(&dn.entry);
-                                        right_nodes
-                                            .iter()
-                                            .find(|n| n.label == name)
-                                            .map(|n| (n.entry_index, dn))
+                                        dn.child_index
+                                            .map(|idx| (idx, dn))
                                     })
                                     .collect();
 
