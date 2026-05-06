@@ -115,10 +115,16 @@ pub fn comparison_window_ui(
                                     });
                                 }
                             } else {
-                                ui.label(
-                                    egui::RichText::new("无法解析当前扫描树")
-                                        .color(egui::Color32::RED),
-                                );
+                                ui.vertical(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("无法解析当前扫描树")
+                                            .color(egui::Color32::RED),
+                                    );
+                                    if ui.button("<< 返回根目录").clicked() {
+                                        comparison.left_nav_stack.clear();
+                                        comparison.left_selected = None;
+                                    }
+                                });
                             }
                         } else {
                             ui.label(
@@ -248,10 +254,16 @@ pub fn comparison_window_ui(
                                     });
                                 }
                             } else {
-                                ui.label(
-                                    egui::RichText::new("无法解析快照树")
-                                        .color(egui::Color32::RED),
-                                );
+                                ui.vertical(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("无法解析快照树")
+                                            .color(egui::Color32::RED),
+                                    );
+                                    if ui.button("<< 返回根目录").clicked() {
+                                        comparison.right_nav_stack.clear();
+                                        comparison.right_selected = None;
+                                    }
+                                });
                             }
                         } else {
                             ui.label(
