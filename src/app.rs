@@ -36,6 +36,9 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
     #[cfg(feature = "snapshot")]
     pub snapshot_status: String,
+    // Phase 3 Plan 04: Comparison window state
+    #[cfg(feature = "snapshot")]
+    pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
 }
 
 impl DiskReviewerApp {
@@ -77,6 +80,8 @@ impl DiskReviewerApp {
             snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
             #[cfg(feature = "snapshot")]
             snapshot_status: String::new(),
+            #[cfg(feature = "snapshot")]
+            comparison_state: None,
         }
     }
 
@@ -263,6 +268,32 @@ impl DiskReviewerApp {
             }
         } else if self.scan_result.is_none() {
             self.status_message = "没有可保存的扫描结果".to_string();
+        }
+    }
+
+    /// Open the comparison window for a given snapshot.
+    #[cfg(feature = "snapshot")]
+    fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
+        if let Some(manager) = &self.snapshot_manager {
+            match manager.load_snapshot(snapshot_id) {
+                Ok(root) => {
+                    self.comparison_state = Some(crate::ui::comparison::ComparisonWindow {
+                        open: true,
+                        snapshot_id,
+                        snapshot_name,
+                        snapshot_root: Some(Arc::new(root)),
+                        left_nav_stack: Vec::new(),
+                        right_nav_stack: Vec::new(),
+                        left_selected: None,
+                        right_selected: None,
+                        diff_cache: None,
+                    });
+                    self.snapshot_dialog_open = false;
+                }
+                Err(e) => {
+                    self.status_message = format!("加载快照失败: {}", e);
+                }
+            }
         }
     }
 }
@@ -487,12 +518,25 @@ impl eframe::App for DiskReviewerApp {
                         }
                     }
                     SnapshotAction::Load(id) => self.load_snapshot_into_view(id),
-                    SnapshotAction::OpenComparison(_id) => {
-                        // Will wire up in Plan 04
+                    SnapshotAction::OpenComparison(id) => {
+                        // Find the snapshot name before calling open_comparison
+                        // (avoids borrow conflict with &self.snapshot_manager)
+                        let name = self.snapshot_dialog_state.snapshots.iter()
+                            .find(|s| s.id == id)
+                            .map(|s| s.name.clone())
+                            .unwrap_or_else(|| format!("快照 #{}", id));
+                        self.open_comparison(id, name);
                     }
                     SnapshotAction::None => {}
                 }
             }
+        }
+
+        // Comparison window rendering (after snapshot dialog)
+        #[cfg(feature = "snapshot")]
+        if let Some(comp) = &mut self.comparison_state {
+            let scan = self.scan_result.as_ref().map(|r| r.as_ref());
+            crate::ui::comparison::comparison_window_ui(ctx, comp, scan);
         }
     }
 }
