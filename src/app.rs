@@ -47,9 +47,6 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_open: bool,
     #[cfg(feature = "snapshot")]
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
-    // Phase 3 Plan 04: Comparison window state
-    #[cfg(feature = "snapshot")]
-    pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
     // Async save state
     #[cfg(feature = "snapshot")]
     pub save_snapshot_receiver: Option<Receiver<SaveSnapshotMsg>>,
@@ -104,8 +101,6 @@ impl DiskReviewerApp {
             save_snapshot_receiver: None,
             #[cfg(feature = "snapshot")]
             snapshot_save_in_progress: false,
-            #[cfg(feature = "snapshot")]
-            comparison_state: None,
         }
     }
 
@@ -318,24 +313,16 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Open the comparison view as a large centered window.
+    /// Open the comparison view as a separate OS process (real independent window).
     #[cfg(feature = "snapshot")]
     fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
-        if let Some(manager) = &self.snapshot_manager {
-            match manager.load_snapshot(snapshot_id) {
-                Ok(root) => {
-                    self.comparison_state = Some(
-                        crate::ui::comparison::ComparisonWindow::new(
-                            snapshot_id,
-                            snapshot_name,
-                            Arc::new(root),
-                        ),
-                    );
-                    self.snapshot_dialog_open = false;
-                }
-                Err(e) => {
-                    self.status_message = format!("加载快照失败: {}", e);
-                }
+        match crate::ui::comparison::launch_comparison_process(snapshot_id, &snapshot_name) {
+            Ok(_) => {
+                self.status_message = format!("已打开对比窗口: {}", snapshot_name);
+                self.snapshot_dialog_open = false;
+            }
+            Err(e) => {
+                self.status_message = format!("打开对比窗口失败: {}", e);
             }
         }
     }
@@ -587,16 +574,6 @@ impl eframe::App for DiskReviewerApp {
             }
         }
 
-        // Comparison window
-        #[cfg(feature = "snapshot")]
-        if let Some(comp) = &mut self.comparison_state {
-            let scan = self.scan_result.as_ref().map(|r| r.as_ref());
-            crate::ui::comparison::comparison_window_ui(ctx, comp, scan);
-            // Remove from state if closed
-            if !comp.open {
-                self.comparison_state = None;
-            }
-        }
     }
 }
 

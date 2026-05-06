@@ -12,4 +12,4 @@ pub use info_panel::info_panel_ui;
 #[cfg(feature = "snapshot")]
 pub use snapshot_dialog::{snapshot_dialog_ui, SnapshotAction, SnapshotDialog};
 #[cfg(feature = "snapshot")]
-pub use comparison::{comparison_window_ui, ComparisonWindow};
+pub use comparison::launch_comparison_process;
