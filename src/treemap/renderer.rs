@@ -1,4 +1,4 @@
-use egui::{Color32, CornerRadius, FontId, Sense, Stroke, StrokeKind, Ui, emath};
+use egui::{Color32, CornerRadius, FontId, Mesh, Pos2, Sense, Stroke, StrokeKind, Ui, emath, Vec2};
 use crate::treemap::{TreemapAction, TreemapNode};
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
@@ -37,7 +37,18 @@ pub fn paint_treemap(
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        painter.rect_filled(rect, CornerRadius::same(1), node.color);
+        // 垂直渐变填充：顶部为基色，底部渐变为白色
+        let top_color = node.color;
+        let bottom_color = Color32::WHITE;
+        let mut mesh = Mesh::default();
+        mesh.colored_vertex(rect.left_top(), top_color);
+        mesh.colored_vertex(rect.right_top(), top_color);
+        mesh.colored_vertex(rect.right_bottom(), bottom_color);
+        mesh.colored_vertex(rect.left_bottom(), bottom_color);
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(0, 2, 3);
+        painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
+
         painter.rect_stroke(
             rect,
             CornerRadius::same(1),
