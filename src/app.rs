@@ -6,8 +6,7 @@ use std::thread;
 
 use crate::platform::drives::{self, DriveInfo};
 use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
-use crate::treemap;
-use crate::treemap::paint_treemap;
+use crate::treemap::{paint_treemap, TreemapAction};
 use crate::ui::breadcrumb::breadcrumb_ui;
 use egui::emath::{pos2, vec2, Rect};
 
@@ -22,10 +21,11 @@ pub struct DiskReviewerApp {
     pub nav_stack: Vec<usize>,
     pub selected_index: Option<usize>,
     pub treemap_nodes: Vec<crate::treemap::TreemapNode>,
+    needs_rebuild: bool,
 }
 
 impl DiskReviewerApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let drives = drives::enumerate_drives();
         Self {
             drives,
@@ -37,6 +37,7 @@ impl DiskReviewerApp {
             nav_stack: Vec::new(),
             selected_index: None,
             treemap_nodes: Vec::new(),
+            needs_rebuild: false,
         }
     }
 
@@ -138,10 +139,7 @@ impl DiskReviewerApp {
             }
         }
         if needs_rebuild {
-            self.rebuild_treemap(Rect::from_min_size(
-                pos2(0.0, 0.0),
-                vec2(1.0, 1.0),
-            ));
+            self.needs_rebuild = true;
         }
     }
 
@@ -162,10 +160,7 @@ impl DiskReviewerApp {
             if let Some(crate::scanner::Entry::Dir(_)) = dir.children.get(child_index) {
                 self.nav_stack.push(child_index);
                 self.selected_index = None;
-                self.rebuild_treemap(Rect::from_min_size(
-                    pos2(0.0, 0.0),
-                    vec2(1.0, 1.0),
-                ));
+                self.needs_rebuild = true;
             }
         }
     }
@@ -173,10 +168,7 @@ impl DiskReviewerApp {
     fn navigate_to_depth(&mut self, depth: usize) {
         self.nav_stack.truncate(depth);
         self.selected_index = None;
-        self.rebuild_treemap(Rect::from_min_size(
-            pos2(0.0, 0.0),
-            vec2(1.0, 1.0),
-        ));
+        self.needs_rebuild = true;
     }
 
     fn rebuild_treemap(&mut self, canvas: Rect) {
@@ -249,27 +241,49 @@ impl eframe::App for DiskReviewerApp {
             ui.label(&self.status_message);
 
             // Treemap 渲染
-            if !self.treemap_nodes.is_empty() {
+            if !self.treemap_nodes.is_empty() || self.scan_result.is_some() {
                 ui.separator();
+
+                // 计算画布尺寸
                 let canvas_rect = Rect::from_min_size(
                     pos2(0.0, 0.0),
                     vec2(ui.available_width(), ui.available_height().max(200.0)),
                 );
-                if let Some(dir) = self.current_dir() {
-                    self.rebuild_treemap(canvas_rect);
+
+                // 仅在需要时重建布局（扫描完成/下钻/导航），避免每帧重算
+                if self.needs_rebuild {
+                    if let Some(_dir) = self.current_dir() {
+                        self.rebuild_treemap(canvas_rect);
+                    }
+                    self.needs_rebuild = false;
                 }
-                if let Some(clicked) = paint_treemap(
-                    ui, &self.treemap_nodes, self.selected_index,
+
+                // paint_treemap 返回双击下钻的目录索引或单击选中的索引
+                if let Some(action) = paint_treemap(
+                    ui, &self.treemap_nodes, self.selected_index, canvas_rect,
                 ) {
-                    if let Some(dir) = self.current_dir() {
-                        if let Some(entry) = dir.children.get(clicked) {
-                            if matches!(entry, Entry::Dir(_)) {
-                                self.drill_down(clicked);
-                                return;
+                    match action {
+                        TreemapAction::DoubleClick(child_index) => {
+                            // 双击目录 → 下钻
+                            if let Some(dir) = self.current_dir() {
+                                if let Some(entry) = dir.children.get(child_index) {
+                                    if matches!(entry, Entry::Dir(_)) {
+                                        self.drill_down(child_index);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        TreemapAction::Click(child_index) => {
+                            // 单击 → 选中（目录和非目录都支持）
+                            // 点击空白区域时 child_index == usize::MAX 表示取消选中
+                            if child_index == usize::MAX {
+                                self.selected_index = None;
+                            } else {
+                                self.selected_index = Some(child_index);
                             }
                         }
                     }
-                    self.selected_index = Some(clicked);
                 }
             }
         });

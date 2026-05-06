@@ -1,32 +1,57 @@
 use egui::{Color32, CornerRadius, FontId, Sense, Stroke, StrokeKind, Ui, emath};
-use crate::treemap::TreemapNode;
+use crate::treemap::{TreemapAction, TreemapNode};
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
+const SELECTED_STROKE_WIDTH: f32 = 2.0;
 
+/// 绘制 Treemap，返回用户交互动作
+///
+/// 交互模式：
+/// - 单击色块 → 选中（TreemapAction::Click）
+/// - 单击空白 → 取消选中（TreemapAction::Click(usize::MAX)）
+/// - 双击目录色块 → 下钻（TreemapAction::DoubleClick）
+///
+/// canvas_rect 参数指定了绘制区域的实际位置，确保矩形坐标与 painter 原点一致。
 pub fn paint_treemap(
     ui: &mut Ui,
     nodes: &[TreemapNode],
     selected_index: Option<usize>,
-) -> Option<usize> {
-    let size = ui.available_size();
-    let (response, painter) = ui.allocate_painter(size, Sense::click());
-    let mut clicked_index = None;
+    canvas_rect: emath::Rect,
+) -> Option<TreemapAction> {
+    // 使用 canvas_rect 分配 painter，确保响应区域与绘制区域一致
+    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click_and_drag());
+    let response_rect = response.rect;
+
+    // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
+    let offset = response_rect.min - canvas_rect.min;
 
     for (i, node) in nodes.iter().enumerate() {
-        if !response.rect.intersects(node.rect) { continue; }
-        painter.rect_filled(node.rect, CornerRadius::same(1), node.color);
+        let rect = node.rect.translate(offset);
+        if !response_rect.intersects(rect) { continue; }
+
+        // 绘制填充矩形
+        painter.rect_filled(rect, CornerRadius::same(1), node.color);
+
+        // 选中高亮：半透明白色叠加 + 细边框
         if selected_index == Some(i) {
-            painter.rect_stroke(
-                node.rect.shrink(1.0),
+            painter.rect_filled(
+                rect.shrink(1.0),
                 CornerRadius::same(1),
-                Stroke::new(2.0, Color32::WHITE),
+                Color32::from_rgba_premultiplied(255, 255, 255, 40),
+            );
+            painter.rect_stroke(
+                rect.shrink(1.0),
+                CornerRadius::same(1),
+                Stroke::new(SELECTED_STROKE_WIDTH, Color32::from_rgba_premultiplied(255, 255, 255, 180)),
                 StrokeKind::Middle,
             );
         }
-        let area = node.rect.width() * node.rect.height();
+
+        // 标签：面积足够大时显示
+        let area = rect.width() * rect.height();
         if area >= LABEL_AREA_THRESHOLD {
             painter.text(
-                node.rect.left_top() + emath::vec2(2.0, 2.0),
+                rect.left_top() + emath::vec2(3.0, 3.0),
                 egui::Align2::LEFT_TOP,
                 &node.label,
                 FontId::proportional(12.0),
@@ -35,20 +60,36 @@ pub fn paint_treemap(
         }
     }
 
-    if response.clicked() {
+    // 处理交互
+    if response.double_clicked() {
+        // 双击 → 下钻
         if let Some(pos) = response.interact_pointer_pos() {
             for (i, node) in nodes.iter().enumerate().rev() {
-                if node.rect.contains(pos) {
-                    clicked_index = Some(i);
-                    break;
+                let rect = node.rect.translate(offset);
+                if rect.contains(pos) {
+                    return Some(TreemapAction::DoubleClick(i));
                 }
             }
         }
+    } else if response.clicked() {
+        // 单击 → 选中 或 取消选中
+        if let Some(pos) = response.interact_pointer_pos() {
+            for (i, node) in nodes.iter().enumerate().rev() {
+                let rect = node.rect.translate(offset);
+                if rect.contains(pos) {
+                    return Some(TreemapAction::Click(i));
+                }
+            }
+            // 点击空白区域 → 取消选中
+            return Some(TreemapAction::Click(usize::MAX));
+        }
     }
 
+    // 悬停提示
     if let Some(pos) = response.hover_pos() {
         for node in nodes.iter().rev() {
-            if node.rect.contains(pos) {
+            let rect = node.rect.translate(offset);
+            if rect.contains(pos) {
                 let size_str = format_size(node.size);
                 response.on_hover_ui_at_pointer(|ui| {
                     ui.label(&node.label);
@@ -60,7 +101,7 @@ pub fn paint_treemap(
         }
     }
 
-    clicked_index
+    None
 }
 
 pub fn format_size(bytes: u64) -> String {
