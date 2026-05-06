@@ -37,16 +37,25 @@ pub fn paint_treemap(
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        // 垂直渐变填充：顶部为基色，底部渐变为白色
-        let top_color = node.color;
-        let bottom_color = Color32::WHITE;
+        // 垂直渐变填充：顶部 60% 纯色基色，底部 40% 渐变为白色
+        let base_color = node.color;
+        let white = Color32::WHITE;
+        let gradient_start = rect.top() + rect.height() * 0.6;
         let mut mesh = Mesh::default();
-        mesh.colored_vertex(rect.left_top(), top_color);
-        mesh.colored_vertex(rect.right_top(), top_color);
-        mesh.colored_vertex(rect.right_bottom(), bottom_color);
-        mesh.colored_vertex(rect.left_bottom(), bottom_color);
+        // 纯色区域（上 60%）：4 个顶点
+        mesh.colored_vertex(Pos2::new(rect.left(), rect.top()), base_color);       // 0: 左上
+        mesh.colored_vertex(Pos2::new(rect.right(), rect.top()), base_color);      // 1: 右上
+        mesh.colored_vertex(Pos2::new(rect.right(), gradient_start), base_color);  // 2: 渐变起点右
+        mesh.colored_vertex(Pos2::new(rect.left(), gradient_start), base_color);   // 3: 渐变起点左
+        // 渐变区域（下 40%）：2 个底边顶点
+        mesh.colored_vertex(Pos2::new(rect.right(), rect.bottom()), white);        // 4: 右下
+        mesh.colored_vertex(Pos2::new(rect.left(), rect.bottom()), white);         // 5: 左下
+        // 纯色区域（2 个三角形）
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(0, 2, 3);
+        // 渐变区域（2 个三角形）
+        mesh.add_triangle(3, 2, 4);
+        mesh.add_triangle(3, 4, 5);
         painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
 
         painter.rect_stroke(
