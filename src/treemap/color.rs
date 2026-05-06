@@ -2,7 +2,7 @@ use crate::scanner::{DirNode, Entry, FileEntry};
 use egui::Color32;
 use std::path::Path;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum FileCategory {
     Document, Image, Video, Audio, Archive,
     Code, Executable, System, Temp, Other,

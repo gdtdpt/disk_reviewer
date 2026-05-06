@@ -1,14 +1,15 @@
 use std::path::PathBuf;
 use crate::treemap::color::FileCategory;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FileEntry {
     pub name: String,
     pub size: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DirNode {
+
     pub path: PathBuf,
     pub name: String,
     pub total_size: u64,
@@ -18,7 +19,7 @@ pub struct DirNode {
     pub dominant_cat: FileCategory,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Entry {
     File(FileEntry),
     Dir(DirNode),
@@ -27,7 +28,7 @@ pub enum Entry {
     AccessDenied { path: PathBuf },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OthersEntry {
     pub name: String,
     pub size: u64,
@@ -47,7 +48,7 @@ impl Entry {
 }
 
 /// Others 聚合阈值配置（SCAN-05）
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AggThresholds {
     pub max_entries: usize,
     pub top_n: usize,
