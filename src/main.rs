@@ -41,10 +41,34 @@ fn setup_fonts(cc: &eframe::CreationContext<'_>) {
 fn main() -> eframe::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    // Check for --comparison mode: --comparison <snapshot_id> <snapshot_name>
+    // Check for --comparison mode: --comparison <snapshot_id> <snapshot_name> [--scan-data <path>]
     if args.len() >= 4 && args[1] == "--comparison" {
         let snapshot_id: i64 = args[2].parse().unwrap_or(0);
         let snapshot_name = args[3].clone();
+
+        // Optional: path to current scan JSON data
+        let current_scan = if args.len() >= 6 && args[4] == "--scan-data" {
+            let scan_path = std::path::PathBuf::from(&args[5]);
+            if scan_path.exists() {
+                match std::fs::read_to_string(&scan_path) {
+                    Ok(json) => match crate::snapshot::deserialize_tree(&json) {
+                        Ok(root) => Some(std::sync::Arc::new(root)),
+                        Err(e) => {
+                            eprintln!("警告: 无法解析扫描数据: {}", e);
+                            None
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("警告: 无法读取扫描数据文件: {}", e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         // Load snapshot from DB
         #[cfg(feature = "snapshot")]
@@ -78,6 +102,7 @@ fn main() -> eframe::Result<()> {
                             snapshot_id,
                             snapshot_name.clone(),
                             std::sync::Arc::new(root),
+                            current_scan.clone(),
                         ),
                     ))
                 }),

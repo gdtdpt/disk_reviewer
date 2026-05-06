@@ -314,9 +314,15 @@ impl DiskReviewerApp {
     }
 
     /// Open the comparison view as a separate OS process (real independent window).
+    /// Passes the current scan result so the comparison window can show both sides.
     #[cfg(feature = "snapshot")]
     fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
-        match crate::ui::comparison::launch_comparison_process(snapshot_id, &snapshot_name) {
+        let scan = self.scan_result.clone();
+        match crate::ui::comparison::launch_comparison_process(
+            snapshot_id,
+            &snapshot_name,
+            scan,
+        ) {
             Ok(_) => {
                 self.status_message = format!("已打开对比窗口: {}", snapshot_name);
                 self.snapshot_dialog_open = false;

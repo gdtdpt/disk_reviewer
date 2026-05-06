@@ -7,3 +7,4 @@ mod storage;
 pub use diff::{ChangeType, DiffNode, diff_level};
 #[cfg(feature = "snapshot")]
 pub use storage::{SnapshotMeta, SnapshotStorage};
+pub use serialize::{serialize_tree, deserialize_tree};
