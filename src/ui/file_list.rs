@@ -28,9 +28,9 @@ pub fn file_list_ui(
         for (i, node) in nodes.iter().enumerate() {
             let is_selected = selected_index == Some(i);
 
-            // 选中背景高亮
+            // 选中背景高亮（淡蓝色，不遮挡文字）
             let bg_color = if is_selected {
-                Color32::from_rgba_premultiplied(255, 200, 50, 40)
+                Color32::from_rgba_premultiplied(100, 160, 255, 30)
             } else {
                 Color32::TRANSPARENT
             };
@@ -56,13 +56,18 @@ pub fn file_list_ui(
             child_ui.advance_cursor_after_rect(swatch_rect);
             child_ui.add_space(4.0);
 
-            // 名称（左对齐）
+            // 名称（左对齐，选中加粗）
             let name_text = if node.is_dir {
                 format!("📁 {}", node.label)
             } else {
                 node.label.clone()
             };
-            child_ui.label(RichText::new(name_text).size(12.0));
+            let name_style = if is_selected {
+                RichText::new(name_text).size(12.0).strong()
+            } else {
+                RichText::new(name_text).size(12.0)
+            };
+            child_ui.label(name_style);
 
             // 右侧：占比 + 大小
             child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

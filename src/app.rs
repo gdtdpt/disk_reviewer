@@ -271,7 +271,7 @@ impl eframe::App for DiskReviewerApp {
             ui.separator();
             ui.label(&self.status_message);
 
-            // 颜色图例（单行横向排列，始终显示）
+            // 颜色图例（单行横向排列，色块与文字垂直居中对齐）
             ui.horizontal(|ui| {
                 use crate::treemap::color::FileCategory;
                 for cat in [
@@ -286,9 +286,22 @@ impl eframe::App for DiskReviewerApp {
                     FileCategory::Temp,
                     FileCategory::Other,
                 ] {
-                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
-                    ui.label(cat.label());
+                    ui.horizontal(|ui| {
+                        // 用 painter 在文字基线高度绘制色块，确保垂直居中
+                        let text_height = ui.text_style_height(&egui::TextStyle::Body);
+                        let swatch_size = 10.0;
+                        let y_offset = (text_height - swatch_size) / 2.0;
+                        let (rect, _) = ui.allocate_exact_size(
+                            egui::vec2(swatch_size, text_height),
+                            egui::Sense::hover(),
+                        );
+                        let swatch_rect = egui::Rect::from_min_size(
+                            egui::pos2(rect.min.x, rect.min.y + y_offset),
+                            egui::vec2(swatch_size, swatch_size),
+                        );
+                        ui.painter().rect_filled(swatch_rect, egui::CornerRadius::same(1), cat.color());
+                        ui.label(egui::RichText::new(cat.label()).size(11.0));
+                    });
                 }
             });
             ui.separator();
