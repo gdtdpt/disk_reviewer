@@ -176,8 +176,14 @@ impl DiskReviewerApp {
     }
 
     fn rebuild_treemap(&mut self, canvas: Rect) {
+        let t = std::time::Instant::now();
         if let Some(dir) = self.current_dir() {
+            let t2 = std::time::Instant::now();
             self.treemap_nodes = crate::treemap::layout_treemap(dir, canvas);
+            let layout_ms = t2.elapsed().as_secs_f64() * 1000.0;
+            let total_ms = t.elapsed().as_secs_f64() * 1000.0;
+            eprintln!("[perf] rebuild_treemap: layout={:.2}ms total={:.2}ms nodes={}",
+                layout_ms, total_ms, self.treemap_nodes.len());
         } else {
             self.treemap_nodes.clear();
         }

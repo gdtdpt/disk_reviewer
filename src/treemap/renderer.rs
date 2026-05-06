@@ -72,14 +72,20 @@ pub fn paint_treemap(
     let pointer = ui.input(|i| i.pointer.clone());
     let interact_pos = pointer.interact_pos();
 
-    // 先检测双击
-    if pointer.button_double_clicked(egui::PointerButton::Primary) {
+    // 交互检测：手动轮询 input_state
+    let dbl = pointer.button_double_clicked(egui::PointerButton::Primary);
+    let clk = pointer.button_clicked(egui::PointerButton::Primary);
+    if dbl || clk {
+        eprintln!("[input] double={} click={} pos={:?}", dbl, clk, interact_pos);
+    }
+    if dbl {
         if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
+                eprintln!("[input] DoubleClick idx={}", idx);
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
-    } else if pointer.button_clicked(egui::PointerButton::Primary) {
+    } else if clk {
         if let Some(pos) = interact_pos {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::Click(idx));
