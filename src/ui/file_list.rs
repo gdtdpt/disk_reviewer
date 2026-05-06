@@ -35,26 +35,28 @@ pub fn file_list_ui(
                 Color32::TRANSPARENT
             };
 
-            let (response, painter) = ui.allocate_painter(
-                egui::vec2(ui.available_width(), 20.0),
+            // 用 Sense::click() 让整行响应点击，鼠标指针为手型
+            let row_height = 22.0;
+            let (rect, response) = ui.allocate_at_least(
+                egui::vec2(ui.available_width(), row_height),
                 Sense::click(),
             );
 
+            // 绘制选中背景
             if bg_color != Color32::TRANSPARENT {
-                painter.rect_filled(response.rect, 2.0, bg_color);
+                ui.painter().rect_filled(rect, 2.0, bg_color);
             }
 
-            // 布局：颜色色块 + 名称 + 占比 + 大小
-            let mut child_ui = ui.child_ui(response.rect, egui::Layout::left_to_right(egui::Align::Center), None);
+            // 在行区域内绘制内容（不使用 child_ui，直接在 rect 内 painter 绘制）
+            let painter = ui.painter();
 
-            // 12x12 颜色色块
+            // 12x12 颜色色块（垂直居中）
+            let swatch_y = rect.center().y - 6.0;
             let swatch_rect = egui::Rect::from_min_size(
-                child_ui.cursor().min,
+                egui::pos2(rect.min.x + 4.0, swatch_y),
                 egui::vec2(12.0, 12.0),
             );
-            child_ui.painter().rect_filled(swatch_rect, 1.0, node.color);
-            child_ui.advance_cursor_after_rect(swatch_rect);
-            child_ui.add_space(4.0);
+            painter.rect_filled(swatch_rect, 1.0, node.color);
 
             // 名称（左对齐，选中加粗）
             let name_text = if node.is_dir {
@@ -62,41 +64,60 @@ pub fn file_list_ui(
             } else {
                 node.label.clone()
             };
-            let name_style = if is_selected {
-                RichText::new(name_text).size(12.0).strong()
+            let name_color = if is_selected {
+                Color32::BLACK
             } else {
-                RichText::new(name_text).size(12.0)
+                ui.style().visuals.text_color()
             };
-            child_ui.label(name_style);
+            let name_galley = if is_selected {
+                painter.layout_no_wrap(name_text, egui::FontId::proportional(12.0), name_color)
+            } else {
+                painter.layout_no_wrap(name_text, egui::FontId::proportional(12.0), name_color)
+            };
+            let name_pos = egui::pos2(
+                rect.min.x + 22.0,
+                rect.center().y - name_galley.size().y / 2.0,
+            );
+            painter.galley(name_pos, name_galley, name_color);
 
-            // 右侧：占比 + 大小
-            child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new(format_size(node.size))
-                        .size(11.0)
-                        .color(Color32::GRAY),
-                );
-                ui.add_space(8.0);
-                ui.label(
-                    RichText::new(format!("{:.1}%", node.percentage))
-                        .size(11.0)
-                        .color(Color32::GRAY),
-                );
-                ui.add_space(8.0);
-            });
+            // 占比（右对齐）
+            let pct_text = format!("{:.1}%", node.percentage);
+            let pct_galley = painter.layout_no_wrap(
+                pct_text,
+                egui::FontId::proportional(11.0),
+                Color32::GRAY,
+            );
+            let pct_pos = egui::pos2(
+                rect.max.x - pct_galley.size().x - 8.0,
+                rect.center().y - pct_galley.size().y / 2.0,
+            );
+            painter.galley(pct_pos, pct_galley, Color32::GRAY);
 
-            // 交互检测
-            let pointer = ui.input(|i| i.pointer.clone());
-            let interact_pos = pointer.interact_pos();
+            // 大小（占比左侧）
+            let size_text = format_size(node.size);
+            let size_galley = painter.layout_no_wrap(
+                size_text,
+                egui::FontId::proportional(11.0),
+                Color32::GRAY,
+            );
+            let size_pos = egui::pos2(
+                pct_pos.x - size_galley.size().x - 12.0,
+                rect.center().y - size_galley.size().y / 2.0,
+            );
+            painter.galley(size_pos, size_galley, Color32::GRAY);
 
-            if response.hovered() && interact_pos.map_or(false, |p| response.rect.contains(p)) {
-                if pointer.button_double_clicked(egui::PointerButton::Primary) {
-                    if node.is_dir {
-                        action = FileListAction::Drill(i);
-                    }
-                } else if pointer.button_clicked(egui::PointerButton::Primary) {
-                    action = FileListAction::Select(i);
+            // 交互检测：使用 response 的内置方法
+            if response.hovered() {
+                // 鼠标悬停时显示手型指针
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+
+            if response.double_clicked() {
+                if node.is_dir {
+                    action = FileListAction::Drill(i);
                 }
+            } else if response.clicked() {
+                action = FileListAction::Select(i);
             }
         }
     });
