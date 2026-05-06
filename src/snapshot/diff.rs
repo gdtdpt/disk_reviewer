@@ -1,5 +1,6 @@
 use crate::scanner::{DirNode, Entry, FileEntry};
 use crate::treemap::color::FileCategory;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,19 +22,93 @@ pub struct DiffNode {
 
 /// Extract the name for matching (D-19: match by name within same level)
 pub fn entry_name(entry: &Entry) -> String {
-    String::new()
+    match entry {
+        Entry::File(f) => f.name.clone(),
+        Entry::Dir(d) => d.name.clone(),
+        Entry::Others(o) => o.name.clone(),
+        Entry::Symlink(p) => p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string(),
+        Entry::AccessDenied { path } => path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string(),
+    }
 }
 
 /// Diff two DirNode trees at one level.
 /// Matches entries by name (D-19). O(n + m) per level.
-pub fn diff_level(_old: &DirNode, _new: &DirNode) -> Vec<DiffNode> {
-    Vec::new()
+pub fn diff_level(old: &DirNode, new: &DirNode) -> Vec<DiffNode> {
+    let old_names: Vec<String> = old.children.iter().map(|e| entry_name(e)).collect();
+    let old_map: HashMap<&str, &Entry> = old_names
+        .iter()
+        .map(|n| n.as_str())
+        .zip(old.children.iter())
+        .collect();
+    let new_names: Vec<String> = new.children.iter().map(|e| entry_name(e)).collect();
+    let new_map: HashMap<&str, &Entry> = new_names
+        .iter()
+        .map(|n| n.as_str())
+        .zip(new.children.iter())
+        .collect();
+
+    let mut result = Vec::new();
+
+    // Entries in new tree
+    for new_entry in &new.children {
+        let name = entry_name(new_entry);
+        match old_map.get(name.as_str()) {
+            None => {
+                result.push(DiffNode {
+                    entry: new_entry.clone(),
+                    change: ChangeType::Added,
+                    old_size: None,
+                    new_size: new_entry.size(),
+                });
+            }
+            Some(old_entry) => {
+                let old_size = old_entry.size();
+                let new_size = new_entry.size();
+                let change = if new_size > old_size {
+                    ChangeType::Grown
+                } else if new_size < old_size {
+                    ChangeType::Shrunk
+                } else {
+                    ChangeType::Unchanged
+                };
+                result.push(DiffNode {
+                    entry: new_entry.clone(),
+                    change,
+                    old_size: Some(old_size),
+                    new_size,
+                });
+            }
+        }
+    }
+
+    // Entries only in old tree (removed)
+    for old_entry in &old.children {
+        let name = entry_name(old_entry);
+        if !new_map.contains_key(name.as_str()) {
+            result.push(DiffNode {
+                entry: old_entry.clone(),
+                change: ChangeType::Removed,
+                old_size: Some(old_entry.size()),
+                new_size: 0,
+            });
+        }
+    }
+
+    result
 }
 
 /// Diff two DirNode subtrees recursively.
 /// Returns DiffNode vec for the current level.
-pub fn diff_trees_recursive(_old: &DirNode, _new: &DirNode) -> Vec<DiffNode> {
-    Vec::new()
+pub fn diff_trees_recursive(old: &DirNode, new: &DirNode) -> Vec<DiffNode> {
+    diff_level(old, new)
 }
 
 // ── Helper for tests ──────────────────────────────────────────
