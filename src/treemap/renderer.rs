@@ -2,9 +2,23 @@ use egui::{Color32, CornerRadius, FontId, Mesh, Pos2, Sense, Stroke, StrokeKind,
 use crate::treemap::{TreemapAction, TreemapNode};
 use crate::treemap::color::FileCategory;
 
-const LABEL_AREA_THRESHOLD: f32 = 400.0;
 const SELECTED_STROKE_WIDTH: f32 = 2.0;
-const BASE_FONT_SIZE: f32 = 12.0;
+
+/// 根据色块面积返回字体大小（面积越大字体越大）
+/// 返回 (font_size, show_detail) — show_detail 控制是否显示大小/占比后缀
+fn font_for_area(area: f32) -> (f32, bool) {
+    const S: f32 = 9.0;   // 小字
+    const M: f32 = 11.0;  // 中字
+    const L: f32 = 13.0;  // 大字
+    const XL: f32 = 15.0; // 特大字
+    match area {
+        a if a >= 8000.0 => (XL, true),   // 特大色块：大字 + 显示大小
+        a if a >= 3000.0 => (L, true),    // 大色块：大字 + 显示大小
+        a if a >= 800.0  => (M, false),   // 中等色块：中字，仅显示名称
+        a if a >= 200.0  => (S, false),   // 小色块：小字，仅显示名称
+        _ => (0.0, false),                // 太小不显示标签
+    }
+}
 
 /// 绘制 Treemap，返回用户交互动作
 ///
@@ -21,11 +35,6 @@ pub fn paint_treemap(
     // 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
     let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
     let response_rect = response.rect;
-
-    // 根据 DPI 缩放字体大小
-    let dpi_scale = ui.ctx().pixels_per_point();
-    let font_size = (BASE_FONT_SIZE * dpi_scale).max(10.0);
-    let label_font = FontId::proportional(font_size);
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
     let offset = response_rect.min - canvas_rect.min;
@@ -82,13 +91,20 @@ pub fn paint_treemap(
         }
 
         let area = rect.width() * rect.height();
-        if area >= LABEL_AREA_THRESHOLD {
+        let (font_size, show_detail) = font_for_area(area);
+        if font_size > 0.0 {
             let text_color = if selected_index == Some(i) { Color32::BLACK } else { Color32::WHITE };
+            let label_font = FontId::proportional(font_size);
+            let label_text = if show_detail {
+                format!("{}  {:.1}%", node.label, node.percentage)
+            } else {
+                node.label.clone()
+            };
             painter.text(
                 rect.left_top() + emath::vec2(3.0, 3.0),
                 egui::Align2::LEFT_TOP,
-                &node.label,
-                label_font.clone(),
+                label_text,
+                label_font,
                 text_color,
             );
         }
