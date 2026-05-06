@@ -98,7 +98,7 @@ impl DiskReviewerApp {
 
     fn consume_events(&mut self, ctx: &egui::Context) {
         // Take the receiver out temporarily to avoid borrow conflicts
-        let mut receiver_match = false;
+        let mut receiver_done = false;
         let mut needs_rebuild = false;
         if let Some(receiver) = self.event_receiver.take() {
             let mut count = 0;
@@ -130,12 +130,12 @@ impl DiskReviewerApp {
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
-                        receiver_match = true; // signal that receiver is done
+                        receiver_done = true;
                         break;
                     }
                 }
             }
-            if !receiver_match {
+            if !receiver_done {
                 self.event_receiver = Some(receiver);
             }
             if count > 0 {
@@ -144,6 +144,14 @@ impl DiskReviewerApp {
         }
         if needs_rebuild {
             self.needs_rebuild = true;
+        }
+    }
+
+    /// 扫描期间持续请求重绘，确保切换回应用时 UI 能立即更新
+    fn request_repaint_while_scanning(&self, ctx: &egui::Context) {
+        if self.event_receiver.is_some() {
+            // 扫描仍在进行，约 200ms 后再次请求重绘
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
         }
     }
 
@@ -190,6 +198,7 @@ impl DiskReviewerApp {
 impl eframe::App for DiskReviewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.consume_events(ctx);
+        self.request_repaint_while_scanning(ctx);
 
         // 面包屑在顶部 — take-and-restore 模式避免借用冲突
         let nav_action: Option<usize> = self.scan_result.as_ref().and_then(|root| {
