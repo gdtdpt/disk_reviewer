@@ -111,11 +111,11 @@ pub fn snapshot_dialog_ui(
                     egui::Button::new("新建"),
                 );
                 if create_btn.clicked() {
-                    let name = if dialog.new_name_buffer.is_empty() {
+                    let name = if dialog.new_name_buffer.trim().is_empty() {
                         // D-18: default name with timestamp
                         chrono::Local::now().format("快照 %Y-%m-%d %H:%M").to_string()
                     } else {
-                        dialog.new_name_buffer.clone()
+                        dialog.new_name_buffer.trim().to_string()
                     };
                     action = SnapshotAction::Create(name);
                     dialog.new_name_buffer.clear();
