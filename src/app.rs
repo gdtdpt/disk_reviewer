@@ -213,15 +213,30 @@ impl eframe::App for DiskReviewerApp {
         }
 
         // 右侧详情面板 (D-14: 固定宽度 320px)
+        // 使用 take-and-restore 模式处理列表交互
+        let mut list_action = crate::ui::info_panel::FileListAction::None;
+        let selected_for_panel = self.selected_index.and_then(|i| self.treemap_nodes.get(i));
         egui::SidePanel::right("detail_panel")
             .exact_width(320.0)
             .show(ctx, |ui| {
-                let selected = self
-                    .selected_index
-                    .and_then(|i| self.treemap_nodes.get(i));
-                let current_dir = self.current_dir();
-                crate::ui::info_panel::info_panel_ui(ui, selected, current_dir);
+                list_action = crate::ui::info_panel::info_panel_ui(
+                    ui,
+                    selected_for_panel,
+                    self.current_dir(),
+                    &self.treemap_nodes,
+                );
             });
+
+        // 处理文件列表交互（在闭包外，可修改 self）
+        match list_action {
+            crate::ui::info_panel::FileListAction::Select(i) => {
+                self.selected_index = Some(i);
+            }
+            crate::ui::info_panel::FileListAction::Drill(i) => {
+                self.drill_down(i);
+            }
+            crate::ui::info_panel::FileListAction::None => {}
+        }
 
         // 左侧 Treemap 画布 (D-14: 剩余 ~70%)
         egui::CentralPanel::default().show(ctx, |ui| {

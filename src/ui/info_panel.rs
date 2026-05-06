@@ -3,11 +3,22 @@ use crate::treemap::TreemapNode;
 use crate::treemap::renderer::format_size;
 use crate::scanner::DirNode;
 
+/// 文件列表用户操作
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileListAction {
+    None,
+    Select(usize),
+    Drill(usize),
+}
+
 pub fn info_panel_ui(
     ui: &mut Ui,
     selected: Option<&TreemapNode>,
     current_dir: Option<&DirNode>,
-) {
+    nodes: &[TreemapNode],
+) -> FileListAction {
+    let mut action = FileListAction::None;
+
     ui.heading("详情");
     ui.separator();
 
@@ -39,4 +50,22 @@ pub fn info_panel_ui(
         ui.label(egui::RichText::new("点击色块查看详情").size(12.0));
     }
 
+    // 文件列表
+    if !nodes.is_empty() {
+        ui.separator();
+        ui.label(egui::RichText::new(format!("共 {} 项", nodes.len())).size(11.0).color(egui::Color32::GRAY));
+        ui.add_space(4.0);
+
+        let list_action = crate::ui::file_list::file_list_ui(ui, nodes, selected_index(nodes, selected));
+        action = list_action;
+    }
+
+    action
+}
+
+/// 找到选中节点在 nodes 列表中的索引
+fn selected_index(nodes: &[TreemapNode], selected: Option<&TreemapNode>) -> Option<usize> {
+    selected.and_then(|s| {
+        nodes.iter().position(|n| n.entry_index == s.entry_index)
+    })
 }
