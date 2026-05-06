@@ -10,6 +10,19 @@ use crate::treemap::{paint_treemap, TreemapAction};
 use crate::ui::breadcrumb::breadcrumb_ui;
 use egui::{Color32, emath::{pos2, vec2, Rect}};
 
+/// Result of an async snapshot save operation.
+#[cfg(feature = "snapshot")]
+pub enum SaveSnapshotResult {
+    Success(i64, String), // id, name
+    Error(String),
+}
+
+/// Message sent from async save thread.
+#[cfg(feature = "snapshot")]
+pub struct SaveSnapshotMsg {
+    pub result: SaveSnapshotResult,
+}
+
 #[cfg(feature = "snapshot")]
 use crate::snapshot::SnapshotStorage;
 
@@ -37,6 +50,11 @@ pub struct DiskReviewerApp {
     // Phase 3 Plan 04: Comparison window state
     #[cfg(feature = "snapshot")]
     pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
+    // Async save state
+    #[cfg(feature = "snapshot")]
+    pub save_snapshot_receiver: Option<Receiver<SaveSnapshotMsg>>,
+    #[cfg(feature = "snapshot")]
+    pub snapshot_save_in_progress: bool,
 }
 
 impl DiskReviewerApp {
@@ -84,6 +102,10 @@ impl DiskReviewerApp {
             snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
             #[cfg(feature = "snapshot")]
             comparison_state: None,
+            #[cfg(feature = "snapshot")]
+            save_snapshot_receiver: None,
+            #[cfg(feature = "snapshot")]
+            snapshot_save_in_progress: false,
         }
     }
 
@@ -256,20 +278,63 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Save current scan result as a snapshot.
+    /// Save current scan result as a snapshot asynchronously.
     #[cfg(feature = "snapshot")]
-    fn save_current_snapshot(&mut self, name: &str) {
-        if let (Some(manager), Some(scan_result)) = (&mut self.snapshot_manager, &self.scan_result) {
-            match manager.save_snapshot(name, scan_result) {
-                Ok(id) => {
-                    self.status_message = format!("快照已保存: {} (#{})", name, id);
-                }
-                Err(e) => {
-                    self.status_message = format!("保存快照失败: {}", e);
-                }
-            }
-        } else if self.scan_result.is_none() {
+    fn save_current_snapshot_async(&mut self, name: String) {
+        if self.scan_result.is_none() {
             self.status_message = "没有可保存的扫描结果".to_string();
+            return;
+        }
+        // Need to clone the db path and scan data for the thread
+        let scan_result = match &self.scan_result {
+            Some(r) => r.clone(),
+            None => return,
+        };
+        // We need a separate connection for the async thread
+        let db_path = dirs::data_local_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("disk_reviewer")
+            .join("snapshots.db");
+
+        let (sender, receiver) = crossbeam_channel::bounded(1);
+        self.save_snapshot_receiver = Some(receiver);
+        self.snapshot_save_in_progress = true;
+        self.status_message = format!("正在保存快照: {} ...", name);
+
+        thread::spawn(move || {
+            let result = match crate::snapshot::SnapshotStorage::new(&db_path) {
+                Ok(mut storage) => match storage.save_snapshot(&name, &scan_result) {
+                    Ok(id) => SaveSnapshotResult::Success(id, name),
+                    Err(e) => SaveSnapshotResult::Error(format!("保存快照失败: {}", e)),
+                },
+                Err(e) => SaveSnapshotResult::Error(format!("数据库连接失败: {}", e)),
+            };
+            sender.send(SaveSnapshotMsg { result }).ok();
+        });
+    }
+
+    /// Poll the async save result and update UI state.
+    #[cfg(feature = "snapshot")]
+    fn poll_save_result(&mut self) {
+        if let Some(receiver) = &self.save_snapshot_receiver {
+            if let Ok(msg) = receiver.try_recv() {
+                match msg.result {
+                    SaveSnapshotResult::Success(id, name) => {
+                        self.status_message = format!("快照已保存: {} (#{})", name, id);
+                        // Refresh snapshot list
+                        if let Some(manager) = &self.snapshot_manager {
+                            if let Ok(list) = manager.list_snapshots() {
+                                self.snapshot_dialog_state.snapshots = list;
+                            }
+                        }
+                    }
+                    SaveSnapshotResult::Error(e) => {
+                        self.status_message = e;
+                    }
+                }
+                self.snapshot_save_in_progress = false;
+                self.save_snapshot_receiver = None;
+            }
         }
     }
 
@@ -289,6 +354,7 @@ impl DiskReviewerApp {
                         left_selected: None,
                         right_selected: None,
                         diff_cache: None,
+                        diff_cache_key: None,
                     });
                     self.snapshot_dialog_open = false;
                 }
@@ -304,6 +370,8 @@ impl eframe::App for DiskReviewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.consume_events(ctx);
         self.request_repaint_while_scanning(ctx);
+        #[cfg(feature = "snapshot")]
+        self.poll_save_result();
 
         // 面包屑在顶部 — take-and-restore 模式避免借用冲突
         let nav_action: Option<usize> = self.scan_result.as_ref().and_then(|root| {
@@ -381,7 +449,11 @@ impl eframe::App for DiskReviewerApp {
                 #[cfg(feature = "snapshot")]
                 if ui.button("快照").clicked() {
                     self.snapshot_dialog_open = !self.snapshot_dialog_open;
+                    self.snapshot_dialog_state.open = self.snapshot_dialog_open;
                     if self.snapshot_dialog_open {
+                        crate::ui::snapshot_dialog::maybe_prefill_default_name(
+                            &mut self.snapshot_dialog_state,
+                        );
                         if let Some(manager) = &self.snapshot_manager {
                             match manager.list_snapshots() {
                                 Ok(list) => self.snapshot_dialog_state.snapshots = list,
@@ -497,16 +569,21 @@ impl eframe::App for DiskReviewerApp {
                     ctx,
                     &mut self.snapshot_dialog_state,
                     scan_available,
+                    self.snapshot_save_in_progress,
                 );
                 use crate::ui::snapshot_dialog::SnapshotAction;
                 match action {
-                    SnapshotAction::Create(name) => self.save_current_snapshot(&name),
+                    SnapshotAction::Create(name) => self.save_current_snapshot_async(name),
                     SnapshotAction::Delete(id) => {
                         if let Some(mgr) = &mut self.snapshot_manager {
                             if let Err(e) = mgr.delete_snapshot(id) {
                                 self.status_message = format!("删除失败: {}", e);
                             } else {
                                 self.status_message = format!("已删除快照 #{}", id);
+                                // Refresh list immediately
+                                if let Ok(list) = mgr.list_snapshots() {
+                                    self.snapshot_dialog_state.snapshots = list;
+                                }
                             }
                         }
                     }
@@ -516,6 +593,10 @@ impl eframe::App for DiskReviewerApp {
                                 self.status_message = format!("重命名失败: {}", e);
                             } else {
                                 self.status_message = format!("快照已重命名为: {}", name);
+                                // Refresh list immediately
+                                if let Ok(list) = mgr.list_snapshots() {
+                                    self.snapshot_dialog_state.snapshots = list;
+                                }
                             }
                         }
                     }
