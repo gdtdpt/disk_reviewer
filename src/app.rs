@@ -47,9 +47,6 @@ pub struct DiskReviewerApp {
     pub snapshot_dialog_open: bool,
     #[cfg(feature = "snapshot")]
     pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
-    // Phase 3 Plan 04: Comparison window state
-    #[cfg(feature = "snapshot")]
-    pub comparison_state: Option<crate::ui::comparison::ComparisonWindow>,
     // Async save state
     #[cfg(feature = "snapshot")]
     pub save_snapshot_receiver: Option<Receiver<SaveSnapshotMsg>>,
@@ -100,8 +97,6 @@ impl DiskReviewerApp {
             snapshot_dialog_open: false,
             #[cfg(feature = "snapshot")]
             snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
-            #[cfg(feature = "snapshot")]
-            comparison_state: None,
             #[cfg(feature = "snapshot")]
             save_snapshot_receiver: None,
             #[cfg(feature = "snapshot")]
@@ -258,26 +253,6 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Load a snapshot into the treemap view (replaces scan_result).
-    #[cfg(feature = "snapshot")]
-    fn load_snapshot_into_view(&mut self, snapshot_id: i64) {
-        if let Some(manager) = &self.snapshot_manager {
-            match manager.load_snapshot(snapshot_id) {
-                Ok(root) => {
-                    self.scan_result = Some(Arc::new(root));
-                    self.nav_stack.clear();
-                    self.selected_index = None;
-                    self.needs_rebuild = true;
-                    self.snapshot_dialog_open = false;
-                    self.status_message = format!("已加载快照 #{}", snapshot_id);
-                }
-                Err(e) => {
-                    self.status_message = format!("加载快照失败: {}", e);
-                }
-            }
-        }
-    }
-
     /// Save current scan result as a snapshot asynchronously.
     #[cfg(feature = "snapshot")]
     fn save_current_snapshot_async(&mut self, name: String) {
@@ -338,25 +313,67 @@ impl DiskReviewerApp {
         }
     }
 
-    /// Open the comparison window for a given snapshot.
+    /// Open the comparison in a separate native window.
     #[cfg(feature = "snapshot")]
     fn open_comparison(&mut self, snapshot_id: i64, snapshot_name: String) {
         if let Some(manager) = &self.snapshot_manager {
             match manager.load_snapshot(snapshot_id) {
                 Ok(root) => {
-                    self.comparison_state = Some(crate::ui::comparison::ComparisonWindow {
-                        open: true,
-                        snapshot_id,
-                        snapshot_name,
-                        snapshot_root: Some(Arc::new(root)),
-                        left_nav_stack: Vec::new(),
-                        right_nav_stack: Vec::new(),
-                        left_selected: None,
-                        right_selected: None,
-                        diff_cache: None,
-                        diff_cache_key: None,
-                    });
+                    let data = Arc::new(std::sync::Mutex::new(
+                        crate::ui::comparison::ComparisonData {
+                            snapshot_root: Arc::new(root),
+                            snapshot_name,
+                            current_scan: self.scan_result.clone(),
+                            close_requested: false,
+                        },
+                    ));
                     self.snapshot_dialog_open = false;
+
+                    // Spawn the comparison window in a new thread
+                    thread::spawn(move || {
+                        let options = eframe::NativeOptions {
+                            viewport: egui::ViewportBuilder::default()
+                                .with_inner_size([1280.0, 768.0])
+                                .with_title("快照对比 — Disk Reviewer"),
+                            ..Default::default()
+                        };
+                        eframe::run_native(
+                            "快照对比",
+                            options,
+                            Box::new(move |cc| {
+                                // Apply same font settings as main window
+                                let mut fonts = egui::FontDefinitions::default();
+                                let chinese_fonts = [
+                                    (r"C:\Windows\Fonts\msyh.ttc", "msyh"),
+                                    (r"C:\Windows\Fonts\simhei.ttf", "simhei"),
+                                ];
+                                for (path_str, name) in &chinese_fonts {
+                                    let font_path = std::path::Path::new(path_str);
+                                    if font_path.exists() {
+                                        if let Ok(font_data) = std::fs::read(font_path) {
+                                            fonts.font_data.insert(
+                                                name.to_string(),
+                                                std::sync::Arc::new(egui::FontData::from_owned(font_data)),
+                                            );
+                                            for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+                                                fonts.families.get_mut(&family).unwrap().insert(0, name.to_string());
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                cc.egui_ctx.set_fonts(fonts);
+                                let mut style = (*cc.egui_ctx.style()).clone();
+                                style.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(12.0));
+                                style.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(12.0));
+                                style.text_styles.insert(egui::TextStyle::Heading, egui::FontId::proportional(15.0));
+                                style.text_styles.insert(egui::TextStyle::Small, egui::FontId::proportional(10.0));
+                                cc.egui_ctx.set_style(style);
+                                Ok(Box::new(crate::ui::comparison::ComparisonApp::new(data)))
+                            }),
+                        )
+                        .ok();
+                    });
                 }
                 Err(e) => {
                     self.status_message = format!("加载快照失败: {}", e);
@@ -600,7 +617,6 @@ impl eframe::App for DiskReviewerApp {
                             }
                         }
                     }
-                    SnapshotAction::Load(id) => self.load_snapshot_into_view(id),
                     SnapshotAction::OpenComparison(id) => {
                         // Find the snapshot name before calling open_comparison
                         // (avoids borrow conflict with &self.snapshot_manager)
@@ -615,12 +631,6 @@ impl eframe::App for DiskReviewerApp {
             }
         }
 
-        // Comparison window rendering (after snapshot dialog)
-        #[cfg(feature = "snapshot")]
-        if let Some(comp) = &mut self.comparison_state {
-            let scan = self.scan_result.as_ref().map(|r| r.as_ref());
-            crate::ui::comparison::comparison_window_ui(ctx, comp, scan);
-        }
     }
 }
 
