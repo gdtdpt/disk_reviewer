@@ -116,7 +116,8 @@ pub fn file_list_ui(
                 if node.is_dir {
                     action = FileListAction::Drill(i);
                 }
-            } else if response.clicked() {
+            } else if response.clicked() && !is_selected {
+                // 只有点击未选中的项才触发选中，避免已选中项被反复取消
                 action = FileListAction::Select(i);
             }
         }

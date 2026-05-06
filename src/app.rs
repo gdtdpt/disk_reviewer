@@ -228,15 +228,17 @@ impl eframe::App for DiskReviewerApp {
             });
 
         // 处理文件列表交互（在闭包外，可修改 self）
-        match list_action {
+        let list_handled = match list_action {
             crate::ui::info_panel::FileListAction::Select(i) => {
                 self.selected_index = Some(i);
+                true
             }
             crate::ui::info_panel::FileListAction::Drill(i) => {
                 self.drill_down(i);
+                true
             }
-            crate::ui::info_panel::FileListAction::None => {}
-        }
+            crate::ui::info_panel::FileListAction::None => false,
+        };
 
         // 左侧 Treemap 画布 (D-14: 剩余 ~70%)
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -353,7 +355,10 @@ impl eframe::App for DiskReviewerApp {
                         }
                         TreemapAction::Click(child_index) => {
                             if child_index == usize::MAX {
-                                self.selected_index = None;
+                                // 点击空白区域取消选中，但文件列表已处理操作时不取消
+                                if !list_handled {
+                                    self.selected_index = None;
+                                }
                             } else {
                                 self.selected_index = Some(child_index);
                             }
