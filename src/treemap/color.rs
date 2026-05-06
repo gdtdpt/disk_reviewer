@@ -18,9 +18,9 @@ impl FileCategory {
             FileCategory::Archive    => Color32::from_rgb(128, 0, 128),
             FileCategory::Code       => Color32::from_rgb(0, 128, 128),
             FileCategory::Executable => Color32::from_rgb(184, 134, 11),
-            FileCategory::System     => Color32::from_rgb(192, 192, 192),
-            FileCategory::Temp       => Color32::from_rgb(169, 169, 169),
-            FileCategory::Other      => Color32::from_rgb(105, 105, 105),
+            FileCategory::System     => Color32::from_rgb(100, 180, 220),
+            FileCategory::Temp       => Color32::from_rgb(255, 100, 100),
+            FileCategory::Other      => Color32::from_rgb(160, 120, 200),
         }
     }
 
