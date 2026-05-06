@@ -84,6 +84,9 @@ fn compute_diff(
 /// Render the comparison UI inside a viewport.
 /// Called each frame by the viewport callback.
 pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
+    // Request continuous repaint so the viewport stays alive
+    ctx.request_repaint();
+
     let mut state = ComparisonState::load(ctx);
 
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -102,28 +105,32 @@ pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
                 }
             });
         });
-        ui.add_space(4.0);
+        ui.add_space(8.0);
 
-        let panel_height = ui.available_height();
-        let panel_width = (ui.available_width() - 12.0) * 0.5;
+        // Side-by-side panels — each panel uses vertical layout: title on top, treemap below
+        let available_width = ui.available_width();
+        let available_height = ui.available_height();
+        let panel_width = (available_width - 12.0) * 0.5;
 
         ui.horizontal(|ui| {
             // ── Left panel: current scan ──
-            ui.allocate_ui(egui::vec2(panel_width, panel_height), |ui| {
+            ui.allocate_ui(egui::vec2(panel_width, available_height), |ui| {
+                // Title ABOVE the treemap (vertical layout)
                 ui.label(RichText::new("📁 当前扫描").heading());
                 ui.separator();
+
+                let treemap_height = if !state.left_nav_stack.is_empty() {
+                    ui.available_height() - 30.0
+                } else {
+                    ui.available_height()
+                };
 
                 if let Some(scan_root) = scan_ref {
                     let left_current = resolve_by_nav_stack(scan_root, &state.left_nav_stack);
                     if let Some(left_dir) = left_current {
-                        let treemap_h = if !state.left_nav_stack.is_empty() {
-                            ui.available_height() - 30.0
-                        } else {
-                            ui.available_height()
-                        };
                         let canvas = egui::Rect::from_min_size(
                             egui::pos2(0.0, 0.0),
-                            egui::vec2(panel_width, treemap_h.max(200.0)),
+                            egui::vec2(panel_width, treemap_height.max(200.0)),
                         );
                         let nodes = layout_treemap(left_dir, canvas);
 
@@ -134,7 +141,6 @@ pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
                                     if let Some(Entry::Dir(d)) = left_dir.children.get(nodes[idx].entry_index) {
                                         state.left_nav_stack.push(nodes[idx].entry_index);
                                         state.left_selected = None;
-                                        // Auto-sync right
                                         if let Some(ri) = find_matching_dir_index(d,
                                             resolve_by_nav_stack(snap_ref, &state.right_nav_stack).unwrap_or(snap_ref))
                                         {
@@ -171,24 +177,25 @@ pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
             ui.separator();
 
             // ── Right panel: snapshot with diff overlay ──
-            ui.allocate_ui(egui::vec2(ui.available_width(), panel_height), |ui| {
+            ui.allocate_ui(egui::vec2(ui.available_width(), available_height), |ui| {
+                // Title ABOVE the treemap (vertical layout)
                 ui.label(RichText::new(format!("📸 快照: {}", data.snapshot_name)).heading());
                 ui.separator();
 
+                let treemap_height = if !state.right_nav_stack.is_empty() {
+                    ui.available_height() - 30.0
+                } else {
+                    ui.available_height()
+                };
+
                 let right_current = resolve_by_nav_stack(snap_ref, &state.right_nav_stack);
                 if let Some(right_dir) = right_current {
-                    let treemap_h = if !state.right_nav_stack.is_empty() {
-                        ui.available_height() - 30.0
-                    } else {
-                        ui.available_height()
-                    };
                     let canvas = egui::Rect::from_min_size(
                         egui::pos2(0.0, 0.0),
-                        egui::vec2(ui.available_width(), treemap_h.max(200.0)),
+                        egui::vec2(ui.available_width(), treemap_height.max(200.0)),
                     );
                     let nodes = layout_treemap(right_dir, canvas);
 
-                    // Diff cache
                     let needs_recompute = state.diff_cache_key.as_ref() != Some(&state.right_nav_stack)
                         || state.diff_cache.is_none();
                     if needs_recompute {
@@ -210,7 +217,6 @@ pub fn comparison_window_ui(ctx: &egui::Context, data: &ComparisonData) {
                                 if let Some(Entry::Dir(d)) = right_dir.children.get(nodes[idx].entry_index) {
                                     state.right_nav_stack.push(nodes[idx].entry_index);
                                     state.right_selected = None;
-                                    // Auto-sync left
                                     if let Some(sr) = scan_ref {
                                         if let Some(li) = find_matching_dir_index(d,
                                             resolve_by_nav_stack(sr, &state.left_nav_stack).unwrap_or(sr))

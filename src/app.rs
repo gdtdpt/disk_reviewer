@@ -330,22 +330,9 @@ impl DiskReviewerApp {
                             .with_title(format!("对比: {}", name))
                             .with_inner_size([1280.0, 768.0])
                             .with_min_inner_size([800.0, 600.0]),
-                        move |ctx, class| {
-                            // Each frame: render the comparison UI
-                            if class == egui::ViewportClass::Embedded {
-                                // Embedded viewport (fallback) — just show a message
-                                egui::CentralPanel::default().show(ctx, |ui| {
-                                    ui.label("对比窗口");
-                                });
-                                return;
-                            }
-
-                            // Check if window should close
-                            if ctx.input(|i| i.viewport().close_requested()) {
-                                return;
-                            }
-
-                            // Build the comparison UI
+                        move |ctx, _class| {
+                            // Build the comparison UI — the viewport stays alive
+                            // as long as the main window's event loop is running
                             let data = crate::ui::comparison::ComparisonData {
                                 snapshot_root: snapshot_root.clone(),
                                 snapshot_name: name.clone(),
