@@ -12,7 +12,7 @@
 
 - [x] **Phase 1: 扫描引擎** — 异步目录遍历，输出目录树结构 (completed 2026-05-05)
 - [x] **Phase 2: Treemap 可视化** — 矩形树图渲染 + 下钻交互 (completed 2026-05-05)
-- [ ] **Phase 3: 快照与对比** — 快照存储 + 差异检测 + 高亮显示
+- [x] **Phase 3: 快照与对比** — 快照存储 + 差异检测 + 高亮显示 (completed 2026-05-06)
 
 ## Phase Details
 
@@ -66,10 +66,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [x] 03-01-PLAN.md — SQLite 快照存储（schema 设计 + 读写）[Wave 1, TDD]
-- [x] 03-02-PLAN.md — 快照序列化/反序列化 + 快照管理 UI [Wave 2, blocked on 03-01]
-- [x] 03-03-PLAN.md — 差异检测算法（树结构对比）[Wave 2, blocked on 03-01]
-- [x] 03-04-PLAN.md — 差异高亮渲染 + 快照对比视图 [Wave 3, blocked on 03-02 + 03-03]
+- [x] 03-01-PLAN.md — SQLite 快照存储（schema 设计 + 读写）[Wave 1, TDD] ✅
+- [x] 03-02-PLAN.md — 快照管理对话框 + app.rs 集成 [Wave 2] ✅
+- [x] 03-03-PLAN.md — 差异检测算法（树结构对比）[Wave 2, TDD] ✅
+- [x] 03-04-PLAN.md — 差异高亮渲染 + 快照对比视图 [Wave 3] ✅
 
 ## Progress
 
@@ -77,4 +77,4 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1. 扫描引擎 | v1.0 | 4/4 | Complete   | 2026-05-05 |
 | 2. Treemap 可视化 | v1.0 | 6/6 | Complete   | 2026-05-06 |
-| 3. 快照与对比 | v1.0 | 0/4 | Not started | - |
+| 3. 快照与对比 | v1.0 | 4/4 | Complete   | 2026-05-06 |
