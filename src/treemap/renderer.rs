@@ -1,4 +1,5 @@
 use egui::{Color32, CornerRadius, FontId, Sense, Stroke, StrokeKind, Ui, emath};
+use egui::emath::Rect;
 use crate::treemap::{TreemapAction, TreemapNode};
 
 const LABEL_AREA_THRESHOLD: f32 = 400.0;
@@ -10,27 +11,24 @@ const SELECTED_STROKE_WIDTH: f32 = 2.0;
 /// - 单击色块 → 选中（TreemapAction::Click）
 /// - 单击空白 → 取消选中（TreemapAction::Click(usize::MAX)）
 /// - 双击目录色块 → 下钻（TreemapAction::DoubleClick）
-///
-/// canvas_rect 参数指定了绘制区域的实际位置，确保矩形坐标与 painter 原点一致。
 pub fn paint_treemap(
     ui: &mut Ui,
     nodes: &[TreemapNode],
     selected_index: Option<usize>,
     canvas_rect: emath::Rect,
 ) -> Option<TreemapAction> {
-    // 使用 canvas_rect 分配 painter，不设 Sense（避免 click Sense 消费第一次点击导致双击失效）
-    // 手动通过 input_state 检测单击和双击
-    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::hover());
+    // 分配 painter，使用 Sense::click() 让 egui 追踪这个区域的输入
+    // 同时用 interact_pointer_pos 获取精确的点击/双击位置
+    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click());
     let response_rect = response.rect;
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
     let offset = response_rect.min - canvas_rect.min;
 
-    // 辅助函数：将屏幕坐标转换为节点索引（反向遍历 = 最上层优先）
+    // 辅助：屏幕坐标 → 节点索引
     let pos_to_index = |pos: emath::Pos2| -> Option<usize> {
         for (i, node) in nodes.iter().enumerate().rev() {
-            let rect = node.rect.translate(offset);
-            if rect.contains(pos) {
+            if node.rect.translate(offset).contains(pos) {
                 return Some(i);
             }
         }
@@ -41,7 +39,7 @@ pub fn paint_treemap(
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        // 绘制填充矩形 + 细边框区分相邻同色色块
+        // 填充 + 细边框
         painter.rect_filled(rect, CornerRadius::same(1), node.color);
         painter.rect_stroke(
             rect,
@@ -60,14 +58,10 @@ pub fn paint_treemap(
             );
         }
 
-        // 标签：面积足够大时显示（选中状态下用深色文字保证可读性）
+        // 标签
         let area = rect.width() * rect.height();
         if area >= LABEL_AREA_THRESHOLD {
-            let text_color = if selected_index == Some(i) {
-                Color32::BLACK
-            } else {
-                Color32::WHITE
-            };
+            let text_color = if selected_index == Some(i) { Color32::BLACK } else { Color32::WHITE };
             painter.text(
                 rect.left_top() + emath::vec2(3.0, 3.0),
                 egui::Align2::LEFT_TOP,
@@ -78,26 +72,63 @@ pub fn paint_treemap(
         }
     }
 
-    // 处理交互：手动检测单击和双击
-    // 不能用 Sense::click()，因为它会消费第一次点击导致双击检测失败
-    let pos = response.hover_pos();
-    let double_clicked = ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
-    let clicked = ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Primary));
+    // 半透明浮动图例（左上角）
+    use crate::treemap::color::FileCategory;
+    let legend_items = [
+        FileCategory::Document,
+        FileCategory::Image,
+        FileCategory::Video,
+        FileCategory::Audio,
+        FileCategory::Archive,
+        FileCategory::Code,
+        FileCategory::Executable,
+        FileCategory::System,
+        FileCategory::Temp,
+        FileCategory::Other,
+    ];
+    let swatch = 10.0;
+    let gap = 5.0;
+    let label_w = 38.0; // 每个标签估算宽度
+    let total_w = legend_items.len() as f32 * (swatch + gap + label_w) + gap;
+    let legend_bg = Rect::from_min_size(
+        response_rect.min + emath::vec2(4.0, 4.0),
+        emath::vec2(total_w, swatch + 8.0),
+    );
+    painter.rect_filled(
+        legend_bg,
+        CornerRadius::same(4),
+        Color32::from_rgba_premultiplied(0, 0, 0, 150),
+    );
+    let mut cx = legend_bg.min.x + gap;
+    for cat in &legend_items {
+        let swatch_rect = Rect::from_min_size(
+            emath::pos2(cx, legend_bg.min.y + 4.0),
+            emath::vec2(swatch, swatch),
+        );
+        painter.rect_filled(swatch_rect, CornerRadius::same(1), cat.color());
+        painter.text(
+            emath::pos2(cx + swatch + 2.0, legend_bg.min.y + 5.0),
+            egui::Align2::LEFT_TOP,
+            cat.label(),
+            FontId::proportional(9.0),
+            Color32::WHITE,
+        );
+        cx += swatch + gap + label_w;
+    }
 
-    if double_clicked {
-        // 双击 → 下钻
-        if let Some(pos) = pos {
+    // 交互检测：优先检测双击，再检测单击
+    // 使用 response.double_clicked() + interact_pointer_pos() 获取精确位置
+    if response.double_clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::DoubleClick(idx));
             }
         }
-    } else if clicked {
-        // 单击 → 选中 或 取消选中
-        if let Some(pos) = pos {
+    } else if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
             if let Some(idx) = pos_to_index(pos) {
                 return Some(TreemapAction::Click(idx));
             }
-            // 点击空白区域 → 取消选中
             return Some(TreemapAction::Click(usize::MAX));
         }
     }
@@ -105,8 +136,7 @@ pub fn paint_treemap(
     // 悬停提示
     if let Some(pos) = response.hover_pos() {
         for node in nodes.iter().rev() {
-            let rect = node.rect.translate(offset);
-            if rect.contains(pos) {
+            if node.rect.translate(offset).contains(pos) {
                 let size_str = format_size(node.size);
                 response.on_hover_ui_at_pointer(|ui| {
                     ui.label(&node.label);

@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 use crate::platform::drives::{self, DriveInfo};
 use crate::scanner::{scan_directory, AggThresholds, DirNode, Entry, ScanEvent};
 use crate::treemap::{paint_treemap, TreemapAction};
 use crate::ui::breadcrumb::breadcrumb_ui;
-use egui::emath::{pos2, vec2, Rect};
+use egui::{Color32, emath::{pos2, vec2, Rect}};
 
 pub struct DiskReviewerApp {
     pub drives: Vec<DriveInfo>,
@@ -23,6 +24,7 @@ pub struct DiskReviewerApp {
     pub treemap_nodes: Vec<crate::treemap::TreemapNode>,
     needs_rebuild: bool,
     last_canvas_rect: Option<Rect>,
+    last_resize: Option<Instant>,
 }
 
 impl DiskReviewerApp {
@@ -40,6 +42,7 @@ impl DiskReviewerApp {
             treemap_nodes: Vec::new(),
             needs_rebuild: false,
             last_canvas_rect: None,
+            last_resize: None,
         }
     }
 
@@ -242,28 +245,6 @@ impl eframe::App for DiskReviewerApp {
             ui.separator();
             ui.label(&self.status_message);
 
-            // 颜色图例（始终显示，单行横向排列）
-            ui.horizontal(|ui| {
-                use crate::treemap::color::FileCategory;
-                for cat in [
-                    FileCategory::Document,
-                    FileCategory::Image,
-                    FileCategory::Video,
-                    FileCategory::Audio,
-                    FileCategory::Archive,
-                    FileCategory::Code,
-                    FileCategory::Executable,
-                    FileCategory::System,
-                    FileCategory::Temp,
-                    FileCategory::Other,
-                ] {
-                    let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
-                    ui.label(cat.label());
-                }
-            });
-            ui.separator();
-
             // Treemap 画布
             if !self.treemap_nodes.is_empty() || self.scan_result.is_some() {
                 // 计算画布尺寸
@@ -272,14 +253,40 @@ impl eframe::App for DiskReviewerApp {
                     vec2(ui.available_width(), ui.available_height().max(200.0)),
                 );
 
-                // 当画布尺寸变化或需要重建时，重新计算布局
+                // 布局重建逻辑：
+                // 1. 首次/导航/下钻时立即重建
+                // 2. 窗口 resize 时防抖：尺寸变化后等待 200ms 无新变化再重建
                 let canvas_changed = self.last_canvas_rect != Some(canvas_rect);
-                if self.needs_rebuild || canvas_changed {
+                if self.needs_rebuild {
+                    // 立即重建（扫描完成、下钻、导航）
                     if let Some(_dir) = self.current_dir() {
                         self.rebuild_treemap(canvas_rect);
                     }
                     self.needs_rebuild = false;
                     self.last_canvas_rect = Some(canvas_rect);
+                    self.last_resize = None;
+                } else if canvas_changed {
+                    // 尺寸变化：启动防抖计时器
+                    let now = Instant::now();
+                    match self.last_resize {
+                        None => {
+                            // 第一次检测到变化，记录时间，本帧不重建
+                            self.last_resize = Some(now);
+                        }
+                        Some(prev) => {
+                            // 距离上次变化超过 200ms，执行重建
+                            if now.duration_since(prev).as_millis() >= 200 {
+                                if let Some(_dir) = self.current_dir() {
+                                    self.rebuild_treemap(canvas_rect);
+                                }
+                                self.last_canvas_rect = Some(canvas_rect);
+                                self.last_resize = None;
+                            }
+                        }
+                    }
+                } else {
+                    // 尺寸稳定，清除防抖计时器
+                    self.last_resize = None;
                 }
 
                 // paint_treemap 返回双击下钻的目录索引或单击选中的索引
@@ -288,7 +295,6 @@ impl eframe::App for DiskReviewerApp {
                 ) {
                     match action {
                         TreemapAction::DoubleClick(child_index) => {
-                            // 双击目录 → 下钻
                             if let Some(dir) = self.current_dir() {
                                 if let Some(entry) = dir.children.get(child_index) {
                                     if matches!(entry, Entry::Dir(_)) {
@@ -299,8 +305,6 @@ impl eframe::App for DiskReviewerApp {
                             }
                         }
                         TreemapAction::Click(child_index) => {
-                            // 单击 → 选中（目录和非目录都支持）
-                            // 点击空白区域时 child_index == usize::MAX 表示取消选中
                             if child_index == usize::MAX {
                                 self.selected_index = None;
                             } else {
@@ -309,6 +313,7 @@ impl eframe::App for DiskReviewerApp {
                         }
                     }
                 }
+
             }
         });
     }
