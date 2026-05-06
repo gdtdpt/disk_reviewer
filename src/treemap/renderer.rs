@@ -19,43 +19,61 @@ pub fn paint_treemap(
     canvas_rect: emath::Rect,
 ) -> Option<TreemapAction> {
     // 使用 canvas_rect 分配 painter，确保响应区域与绘制区域一致
-    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click_and_drag());
+    // 用 Sense::click() 然后手动检测双击，因为 click_and_drag 不触发 double_clicked
+    let (response, painter) = ui.allocate_painter(canvas_rect.size(), Sense::click());
     let response_rect = response.rect;
 
     // 将节点坐标从 canvas 局部坐标转换为 painter 实际坐标
     let offset = response_rect.min - canvas_rect.min;
 
+    // 辅助函数：将屏幕坐标转换为节点索引（反向遍历 = 最上层优先）
+    let pos_to_index = |pos: emath::Pos2| -> Option<usize> {
+        for (i, node) in nodes.iter().enumerate().rev() {
+            let rect = node.rect.translate(offset);
+            if rect.contains(pos) {
+                return Some(i);
+            }
+        }
+        None
+    };
+
     for (i, node) in nodes.iter().enumerate() {
         let rect = node.rect.translate(offset);
         if !response_rect.intersects(rect) { continue; }
 
-        // 绘制填充矩形
+        // 绘制填充矩形 + 细边框区分相邻同色色块
         painter.rect_filled(rect, CornerRadius::same(1), node.color);
+        painter.rect_stroke(
+            rect,
+            CornerRadius::same(1),
+            Stroke::new(0.5, Color32::from_rgba_premultiplied(0, 0, 0, 60)),
+            StrokeKind::Middle,
+        );
 
-        // 选中高亮：半透明白色叠加 + 细边框
+        // 选中高亮：黄色边框
         if selected_index == Some(i) {
-            painter.rect_filled(
-                rect.shrink(1.0),
-                CornerRadius::same(1),
-                Color32::from_rgba_premultiplied(255, 255, 255, 40),
-            );
             painter.rect_stroke(
                 rect.shrink(1.0),
                 CornerRadius::same(1),
-                Stroke::new(SELECTED_STROKE_WIDTH, Color32::from_rgba_premultiplied(255, 255, 255, 180)),
+                Stroke::new(SELECTED_STROKE_WIDTH, Color32::from_rgba_premultiplied(255, 200, 50, 220)),
                 StrokeKind::Middle,
             );
         }
 
-        // 标签：面积足够大时显示
+        // 标签：面积足够大时显示（选中状态下用深色文字保证可读性）
         let area = rect.width() * rect.height();
         if area >= LABEL_AREA_THRESHOLD {
+            let text_color = if selected_index == Some(i) {
+                Color32::BLACK
+            } else {
+                Color32::WHITE
+            };
             painter.text(
                 rect.left_top() + emath::vec2(3.0, 3.0),
                 egui::Align2::LEFT_TOP,
                 &node.label,
                 FontId::proportional(12.0),
-                Color32::WHITE,
+                text_color,
             );
         }
     }
@@ -64,21 +82,15 @@ pub fn paint_treemap(
     if response.double_clicked() {
         // 双击 → 下钻
         if let Some(pos) = response.interact_pointer_pos() {
-            for (i, node) in nodes.iter().enumerate().rev() {
-                let rect = node.rect.translate(offset);
-                if rect.contains(pos) {
-                    return Some(TreemapAction::DoubleClick(i));
-                }
+            if let Some(idx) = pos_to_index(pos) {
+                return Some(TreemapAction::DoubleClick(idx));
             }
         }
     } else if response.clicked() {
         // 单击 → 选中 或 取消选中
         if let Some(pos) = response.interact_pointer_pos() {
-            for (i, node) in nodes.iter().enumerate().rev() {
-                let rect = node.rect.translate(offset);
-                if rect.contains(pos) {
-                    return Some(TreemapAction::Click(i));
-                }
+            if let Some(idx) = pos_to_index(pos) {
+                return Some(TreemapAction::Click(idx));
             }
             // 点击空白区域 → 取消选中
             return Some(TreemapAction::Click(usize::MAX));

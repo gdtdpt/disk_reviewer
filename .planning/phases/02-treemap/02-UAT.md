@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: fixes_applied
 phase: 02-treemap
 source: [02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md, 02-05-SUMMARY.md]
 started: 2026-05-06T00:00:00Z

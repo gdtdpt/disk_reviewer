@@ -1,6 +1,5 @@
-use egui::{Sense, Ui};
+use egui::Ui;
 use crate::treemap::TreemapNode;
-use crate::treemap::color::FileCategory;
 use crate::treemap::renderer::format_size;
 use crate::scanner::DirNode;
 
@@ -40,29 +39,4 @@ pub fn info_panel_ui(
         ui.label("点击色块查看详情");
     }
 
-    // D-10, D-15: 颜色图例（横向排列，5 列 2 行）
-    ui.separator();
-    ui.heading("图例");
-    let categories = [
-        FileCategory::Document,
-        FileCategory::Image,
-        FileCategory::Video,
-        FileCategory::Audio,
-        FileCategory::Archive,
-        FileCategory::Code,
-        FileCategory::Executable,
-        FileCategory::System,
-        FileCategory::Temp,
-        FileCategory::Other,
-    ];
-    ui.columns_const::<5, _>(|columns| {
-        for (i, cat) in categories.iter().enumerate() {
-            columns[i % 5].horizontal(|ui: &mut egui::Ui| {
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), Sense::hover());
-                ui.painter()
-                    .rect_filled(rect, egui::CornerRadius::same(2), cat.color());
-                ui.label(cat.label());
-            });
-        }
-    });
 }

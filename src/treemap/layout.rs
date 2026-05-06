@@ -97,21 +97,25 @@ fn squarify_recursive(sizes: &[f64], x: f32, y: f32, w: f32, h: f32) -> Vec<NRec
     let mut offset = 0.0f32;
 
     if w >= h {
-        let row_w = row_ratio * w;
-        for &size in &row {
-            let sw = (size as f32 / row_total as f32) * row_w;
-            result.push(NRect { x: x + offset, y, w: sw, h });
-            offset += sw;
-        }
-        result.extend(squarify_recursive(remaining, x + row_w, y, w - row_w, h));
-    } else {
+        // 行沿长边（w）方向铺满，行高 = (row_sum / total) * short_side
         let row_h = row_ratio * h;
         for &size in &row {
-            let sh = (size as f32 / row_total as f32) * row_h;
-            result.push(NRect { x, y: y + offset, w, h: sh });
+            let sw = (size as f32 / row_total as f32) * w;
+            result.push(NRect { x: x + offset, y, w: sw, h: row_h });
+            offset += sw;
+        }
+        // 剩余空间在行下方
+        result.extend(squarify_recursive(remaining, x, y + row_h, w, h - row_h));
+    } else {
+        // 行沿长边（h）方向铺满，行宽 = (row_sum / total) * short_side
+        let row_w = row_ratio * w;
+        for &size in &row {
+            let sh = (size as f32 / row_total as f32) * h;
+            result.push(NRect { x, y: y + offset, w: row_w, h: sh });
             offset += sh;
         }
-        result.extend(squarify_recursive(remaining, x, y + row_h, w, h - row_h));
+        // 剩余空间在行右侧
+        result.extend(squarify_recursive(remaining, x + row_w, y, w - row_w, h));
     }
     result
 }
@@ -120,12 +124,13 @@ fn worst_ratio(row: &[f64], row_sum: f64, short_side: f32, long_side: f32, total
     if row.is_empty() || row_sum == 0.0 || total == 0.0 {
         return f32::MAX;
     }
-    let row_long = (row_sum as f32 / total as f32) * long_side;
-    let row_short = short_side;
+    let row_ratio = row_sum as f32 / total as f32;
+    // 行在短边方向上的厚度
+    let row_thickness = row_ratio * short_side;
+    // 行沿长边方向铺满，每个矩形沿长边方向的长度 = (size / row_sum) * long_side
     row.iter().map(|&s| {
-        let s = s as f32;
-        let w = (s / row_sum as f32) * row_long;
-        let h = (s / row_sum as f32) * row_short;
+        let w = (s as f32 / row_sum as f32) * long_side;
+        let h = row_thickness;
         let mn = w.min(h);
         let mx = w.max(h);
         if mn <= 0.0 { f32::MAX } else { mx / mn }
@@ -250,6 +255,34 @@ mod tests {
         for i in 1..areas.len() {
             assert!((areas[i] - areas[0]).abs() < 0.01,
                 "等 size 条目面积应相等");
+        }
+    }
+
+    #[test]
+    fn test_squarified_not_all_in_one_row() {
+        // 6 个等尺寸条目在 1x1 画布上，squarified 应该分成多行
+        // 如果全部水平排列，则所有 rect 的 y 相同（都在同一行）
+        let dir = make_dir(vec![
+            ("a.txt".to_string(), 100),
+            ("b.txt".to_string(), 100),
+            ("c.txt".to_string(), 100),
+            ("d.txt".to_string(), 100),
+            ("e.txt".to_string(), 100),
+            ("f.txt".to_string(), 100),
+        ]);
+        let result = layout_treemap(&dir, canvas());
+        assert_eq!(result.len(), 6);
+        // 验证不是所有矩形都在同一行（y 坐标不完全相同）
+        let y_coords: Vec<f32> = result.iter().map(|n| n.rect.min.y).collect();
+        let all_same_y = y_coords.iter().all(|&y| (y - y_coords[0]).abs() < 0.001);
+        assert!(!all_same_y, "squarified 布局不应所有矩形在同一行");
+        // 验证矩形的长宽比接近 1:1（没有极端长条）
+        for node in &result {
+            let w = node.rect.width();
+            let h = node.rect.height();
+            let ratio = w.max(h) / w.min(h).max(0.001);
+            assert!(ratio < 3.0,
+                "矩形 {} 的长宽比 {} 应小于 3:1", node.label, ratio);
         }
     }
 }

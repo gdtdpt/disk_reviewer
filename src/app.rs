@@ -244,6 +244,28 @@ impl eframe::App for DiskReviewerApp {
             if !self.treemap_nodes.is_empty() || self.scan_result.is_some() {
                 ui.separator();
 
+                // 颜色图例（单行横向排列）
+                ui.horizontal(|ui| {
+                    use crate::treemap::color::FileCategory;
+                    for cat in [
+                        FileCategory::Document,
+                        FileCategory::Image,
+                        FileCategory::Video,
+                        FileCategory::Audio,
+                        FileCategory::Archive,
+                        FileCategory::Code,
+                        FileCategory::Executable,
+                        FileCategory::System,
+                        FileCategory::Temp,
+                        FileCategory::Other,
+                    ] {
+                        let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, egui::CornerRadius::same(1), cat.color());
+                        ui.label(cat.label());
+                    }
+                });
+                ui.separator();
+
                 // 计算画布尺寸
                 let canvas_rect = Rect::from_min_size(
                     pos2(0.0, 0.0),
