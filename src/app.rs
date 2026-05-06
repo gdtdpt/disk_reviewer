@@ -10,6 +10,9 @@ use crate::treemap::{paint_treemap, TreemapAction};
 use crate::ui::breadcrumb::breadcrumb_ui;
 use egui::{Color32, emath::{pos2, vec2, Rect}};
 
+#[cfg(feature = "snapshot")]
+use crate::snapshot::SnapshotStorage;
+
 pub struct DiskReviewerApp {
     pub drives: Vec<DriveInfo>,
     pub scan_result: Option<Arc<DirNode>>,
@@ -24,6 +27,15 @@ pub struct DiskReviewerApp {
     needs_rebuild: bool,
     last_canvas_rect: Option<Rect>,
     pending_resize: Option<Rect>,
+    // Phase 3: Snapshot management state
+    #[cfg(feature = "snapshot")]
+    pub snapshot_manager: Option<SnapshotStorage>,
+    #[cfg(feature = "snapshot")]
+    pub snapshot_dialog_open: bool,
+    #[cfg(feature = "snapshot")]
+    pub snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog,
+    #[cfg(feature = "snapshot")]
+    pub snapshot_status: String,
 }
 
 impl DiskReviewerApp {
@@ -42,6 +54,29 @@ impl DiskReviewerApp {
             needs_rebuild: false,
             last_canvas_rect: None,
             pending_resize: None,
+            #[cfg(feature = "snapshot")]
+            snapshot_manager: {
+                let db_path = dirs::data_local_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join("disk_reviewer")
+                    .join("snapshots.db");
+                if let Some(parent) = db_path.parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                match SnapshotStorage::new(&db_path) {
+                    Ok(storage) => Some(storage),
+                    Err(e) => {
+                        eprintln!("快照数据库初始化失败: {}", e);
+                        None
+                    }
+                }
+            },
+            #[cfg(feature = "snapshot")]
+            snapshot_dialog_open: false,
+            #[cfg(feature = "snapshot")]
+            snapshot_dialog_state: crate::ui::snapshot_dialog::SnapshotDialog::default(),
+            #[cfg(feature = "snapshot")]
+            snapshot_status: String::new(),
         }
     }
 
@@ -193,6 +228,43 @@ impl DiskReviewerApp {
             self.treemap_nodes.clear();
         }
     }
+
+    /// Load a snapshot into the treemap view (replaces scan_result).
+    #[cfg(feature = "snapshot")]
+    fn load_snapshot_into_view(&mut self, snapshot_id: i64) {
+        if let Some(manager) = &self.snapshot_manager {
+            match manager.load_snapshot(snapshot_id) {
+                Ok(root) => {
+                    self.scan_result = Some(Arc::new(root));
+                    self.nav_stack.clear();
+                    self.selected_index = None;
+                    self.needs_rebuild = true;
+                    self.snapshot_dialog_open = false;
+                    self.status_message = format!("已加载快照 #{}", snapshot_id);
+                }
+                Err(e) => {
+                    self.status_message = format!("加载快照失败: {}", e);
+                }
+            }
+        }
+    }
+
+    /// Save current scan result as a snapshot.
+    #[cfg(feature = "snapshot")]
+    fn save_current_snapshot(&mut self, name: &str) {
+        if let (Some(manager), Some(scan_result)) = (&mut self.snapshot_manager, &self.scan_result) {
+            match manager.save_snapshot(name, scan_result) {
+                Ok(id) => {
+                    self.status_message = format!("快照已保存: {} (#{})", name, id);
+                }
+                Err(e) => {
+                    self.status_message = format!("保存快照失败: {}", e);
+                }
+            }
+        } else if self.scan_result.is_none() {
+            self.status_message = "没有可保存的扫描结果".to_string();
+        }
+    }
 }
 
 impl eframe::App for DiskReviewerApp {
@@ -271,7 +343,21 @@ impl eframe::App for DiskReviewerApp {
             }
 
             ui.separator();
-            ui.label(&self.status_message);
+            ui.horizontal(|ui| {
+                ui.label(&self.status_message);
+                #[cfg(feature = "snapshot")]
+                if ui.button("快照").clicked() {
+                    self.snapshot_dialog_open = !self.snapshot_dialog_open;
+                    if self.snapshot_dialog_open {
+                        if let Some(manager) = &self.snapshot_manager {
+                            match manager.list_snapshots() {
+                                Ok(list) => self.snapshot_dialog_state.snapshots = list,
+                                Err(e) => self.status_message = format!("加载快照列表失败: {}", e),
+                            }
+                        }
+                    }
+                }
+            });
 
             // 颜色图例（单行横向排列，色块与文字垂直居中对齐）
             ui.horizontal(|ui| {
@@ -368,6 +454,46 @@ impl eframe::App for DiskReviewerApp {
 
             }
         });
+
+        // Snapshot management dialog (D-23)
+        #[cfg(feature = "snapshot")]
+        {
+            if self.snapshot_dialog_open {
+                let scan_available = self.scan_result.is_some();
+                let action = crate::ui::snapshot_dialog::snapshot_dialog_ui(
+                    ctx,
+                    &mut self.snapshot_dialog_state,
+                    scan_available,
+                );
+                use crate::ui::snapshot_dialog::SnapshotAction;
+                match action {
+                    SnapshotAction::Create(name) => self.save_current_snapshot(&name),
+                    SnapshotAction::Delete(id) => {
+                        if let Some(mgr) = &mut self.snapshot_manager {
+                            if let Err(e) = mgr.delete_snapshot(id) {
+                                self.status_message = format!("删除失败: {}", e);
+                            } else {
+                                self.status_message = format!("已删除快照 #{}", id);
+                            }
+                        }
+                    }
+                    SnapshotAction::Rename(id, name) => {
+                        if let Some(mgr) = &mut self.snapshot_manager {
+                            if let Err(e) = mgr.rename_snapshot(id, &name) {
+                                self.status_message = format!("重命名失败: {}", e);
+                            } else {
+                                self.status_message = format!("快照已重命名为: {}", name);
+                            }
+                        }
+                    }
+                    SnapshotAction::Load(id) => self.load_snapshot_into_view(id),
+                    SnapshotAction::OpenComparison(_id) => {
+                        // Will wire up in Plan 04
+                    }
+                    SnapshotAction::None => {}
+                }
+            }
+        }
     }
 }
 
