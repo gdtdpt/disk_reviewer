@@ -22,39 +22,40 @@ pub fn info_panel_ui(
     ui.heading("详情");
     ui.separator();
 
-    // 固定详情区域高度：按最多行数（目录 6 行）分配，避免选中不同类型时列表跳动
-    let line_height = 18.0;
-    let max_detail_lines = 6;
-    let detail_height = line_height * max_detail_lines as f32;
-    ui.allocate_exact_size(egui::vec2(ui.available_width(), detail_height), egui::Sense::hover());
+    // 固定详情区域高度，避免选中不同类型时文件列表跳动
+    // 目录最多 6 行（名称、大小、占比、类型、文件数、子目录数）
+    let detail_height = 18.0 * 6.0;
+    ui.scope(|ui| {
+        ui.set_min_height(detail_height);
 
-    if let Some(node) = selected {
-        ui.label(egui::RichText::new(format!("名称: {}", node.label)).size(12.0));
-        ui.label(egui::RichText::new(format!("大小: {}", format_size(node.size))).size(12.0));
-        ui.label(egui::RichText::new(format!("占比: {:.1}%", node.percentage)).size(12.0));
-        ui.label(egui::RichText::new(if node.is_dir { "类型: 目录" } else { "类型: 文件" }).size(12.0));
-        if node.is_dir {
-            if let Some(dir) = current_dir {
-                if let Some(crate::scanner::Entry::Dir(d)) = dir.children.get(node.entry_index) {
-                    ui.label(egui::RichText::new(format!("文件数: {}", d.file_count)).size(12.0));
-                    ui.label(egui::RichText::new(format!(
-                        "子目录: {}",
-                        d.children
-                            .iter()
-                            .filter(|c| matches!(c, crate::scanner::Entry::Dir(_)))
-                            .count()
-                    )).size(12.0));
+        if let Some(node) = selected {
+            ui.label(egui::RichText::new(format!("名称: {}", node.label)).size(12.0));
+            ui.label(egui::RichText::new(format!("大小: {}", format_size(node.size))).size(12.0));
+            ui.label(egui::RichText::new(format!("占比: {:.1}%", node.percentage)).size(12.0));
+            ui.label(egui::RichText::new(if node.is_dir { "类型: 目录" } else { "类型: 文件" }).size(12.0));
+            if node.is_dir {
+                if let Some(dir) = current_dir {
+                    if let Some(crate::scanner::Entry::Dir(d)) = dir.children.get(node.entry_index) {
+                        ui.label(egui::RichText::new(format!("文件数: {}", d.file_count)).size(12.0));
+                        ui.label(egui::RichText::new(format!(
+                            "子目录: {}",
+                            d.children
+                                .iter()
+                                .filter(|c| matches!(c, crate::scanner::Entry::Dir(_)))
+                                .count()
+                        )).size(12.0));
+                    }
                 }
             }
+        } else if let Some(dir) = current_dir {
+            ui.label(egui::RichText::new(format!("当前: {}", dir.name)).size(12.0));
+            ui.label(egui::RichText::new(format!("总大小: {}", format_size(dir.total_size))).size(12.0));
+            ui.label(egui::RichText::new(format!("文件数: {}", dir.file_count)).size(12.0));
+            ui.label(egui::RichText::new(format!("子条目: {}", dir.children.len())).size(12.0));
+        } else {
+            ui.label(egui::RichText::new("点击色块查看详情").size(12.0));
         }
-    } else if let Some(dir) = current_dir {
-        ui.label(egui::RichText::new(format!("当前: {}", dir.name)).size(12.0));
-        ui.label(egui::RichText::new(format!("总大小: {}", format_size(dir.total_size))).size(12.0));
-        ui.label(egui::RichText::new(format!("文件数: {}", dir.file_count)).size(12.0));
-        ui.label(egui::RichText::new(format!("子条目: {}", dir.children.len())).size(12.0));
-    } else {
-        ui.label(egui::RichText::new("点击色块查看详情").size(12.0));
-    }
+    });
 
     // 文件列表
     if !nodes.is_empty() {
