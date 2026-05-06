@@ -161,10 +161,15 @@ impl DiskReviewerApp {
 
     fn drill_down(&mut self, child_index: usize) {
         if let Some(dir) = self.current_dir() {
-            if let Some(crate::scanner::Entry::Dir(_)) = dir.children.get(child_index) {
-                self.nav_stack.push(child_index);
-                self.selected_index = None;
-                self.needs_rebuild = true;
+            if let Some(node) = self.treemap_nodes.get(child_index) {
+                let orig_idx = node.entry_index;
+                if let Some(crate::scanner::Entry::Dir(_)) = dir.children.get(orig_idx) {
+                    eprintln!("[drill] drilling into '{}' (treemap_idx={}, orig_idx={})",
+                        node.label, child_index, orig_idx);
+                    self.nav_stack.push(orig_idx);
+                    self.selected_index = None;
+                    self.needs_rebuild = true;
+                }
             }
         }
     }
